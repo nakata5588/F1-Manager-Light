@@ -113,7 +113,7 @@ test("RW8.10 distance hazard composes to the snapshotted whole-race probability"
   assert.equal(raceIncidentHazardProbability(0,1),0);
 });
 
-test("RW8.10 contact uses the shared CarDamageEngine and persists canonical damage",()=>{
+test("RW35 contact consequences are deterministic without guaranteeing damage",()=>{
   let state=runningState();
   state=patchCars(state,{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:55,speedKmh:198,effectiveCornerSeverity:0.65},
@@ -130,9 +130,36 @@ test("RW8.10 contact uses the shared CarDamageEngine and persists canonical dama
   const second=resolveRaceIncidents(state,state.cars,source,{stepMs:100});
 
   assert.deepEqual(first,second);
-  assert.ok(car({cars:first.cars},"C1").damage);
-  assert.ok(car({cars:first.cars},"C2").damage);
-  assert.equal(first.events.filter((event)=>event.type==="damage").length,2);
+  const damageEvents=first.events.filter((event)=>event.type==="damage");
+  assert.ok(damageEvents.length>=0&&damageEvents.length<=2);
+  for(const event of damageEvents){
+    const damagedCar=car({cars:first.cars},event.carIds[0]);
+    assert.ok(damagedCar?.damage);
+    assert.ok(event.payload.damageProbability>event.payload.damageRoll);
+  }
+});
+
+test("RW35 sufficiently severe contact can still create persistent canonical damage",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252,effectiveCornerSeverity:0.8},
+    C2:{absoluteDistanceM:99,distanceAlongLapM:99,speedMs:30,speedKmh:108,effectiveCornerSeverity:0.8},
+  });
+
+  let found=null;
+  for(let index=0;index<240&&!found;index+=1){
+    const source=[{
+      type:"contact",
+      carIds:["C1","C2"],
+      driverIds:["D1","D2"],
+      payload:{attemptId:`severe-contact-${index}`,probability:0.5},
+    }];
+    const resolved=resolveRaceIncidents(state,state.cars,source,{stepMs:100});
+    if(resolved.events.some((event)=>event.type==="damage"))found=resolved;
+  }
+
+  assert.ok(found,"severe close contact should retain a bounded path to real damage");
+  assert.ok(found.events.some((event)=>event.type==="damage"));
 });
 
 test("RW8.10 contact retirement is independent from solo-accident conditional retirement calibration",()=>{

@@ -8,6 +8,7 @@ import { raceControlRulesForYear } from "../src/engine/RaceControlEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 import { runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
+import { diagnoseOvertakingEvents } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import {
   aggregateRaceBehaviour,
   summarizeRaceBehaviour,
@@ -224,7 +225,21 @@ if(!selected.length){
   throw new Error(`Unknown scenario "${scenarioFilter}". Available: ${scenarios.map((row)=>row.name).join(", ")}`);
 }
 
-const output={generatedAt:new Date().toISOString(),seedCount,scenarios:{}};
+const output={
+  generatedAt:new Date().toISOString(),
+  seedCount,
+  // These are deterministic synthetic drivers/cars, NOT a materialized 1980
+  // season pack or historical Renault/other entrant ratings.
+  provenance:{
+    kind:"synthetic_benchmark",
+    historicalSeasonPack:false,
+    drivers:"deterministically generated raceScore/racecraft",
+    cars:"deterministically generated race/power/chassis",
+    tyres:"genericTyresForYear fallback; resourceSetup.tyres is empty",
+    strategies:"derived from generated tyre-management/intelligence scores",
+  },
+  scenarios:{},
+};
 for(const scenario of selected){
   const runs=[];
   for(let index=0;index<seedCount;index+=1){
@@ -232,11 +247,22 @@ for(const scenario of selected){
     const input=buildInput({...scenario,seed});
     const initial=startRaceState(createRaceState(input,{stepMs:100}));
     const finished=runFastRaceToEnd(initial,{maxSteps:120000});
-    runs.push(summarizeRaceBehaviour(finished,{scenario:scenario.name,seed}));
+    runs.push({
+      ...summarizeRaceBehaviour(finished,{scenario:scenario.name,seed}),
+      overtakingFunnel:diagnoseOvertakingEvents(finished.events),
+    });
   }
   output.scenarios[scenario.name]={
     config:scenario,
     aggregate:aggregateRaceBehaviour(runs),
+    overtakingFunnel:{
+      attempts:runs.reduce((n,r)=>n+r.overtakingFunnel.attempts,0),
+      outcomes:Object.fromEntries(["completed","failed","aborted","contact","unresolved"].map(k=>[k,runs.reduce((n,r)=>n+r.overtakingFunnel.byOutcome[k],0)])),
+      failureReasons:runs.reduce((acc,r)=>{for(const [k,v] of Object.entries(r.overtakingFunnel.failureReasons)){acc[k]=(acc[k]||0)+v;}return acc;},{}),
+      sideBySideCount:runs.reduce((n,r)=>n+r.overtakingFunnel.sideBySideCount,0),
+      failedBeforeSideBySide:runs.reduce((n,r)=>n+r.overtakingFunnel.failedBeforeSideBySide,0),
+      limitation:"Pre-attempt gate rejections are not available as canonical events.",
+    },
     runs,
   };
 }

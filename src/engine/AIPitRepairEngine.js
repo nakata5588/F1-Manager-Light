@@ -32,6 +32,22 @@ function componentDamagePct(damageState,component){
   return clamp(damageState?.components?.[component]?.damage_pct,0,100);
 }
 
+const URGENT_REPAIR_DAMAGE_PCT=Object.freeze({
+  front_wing:55,
+  floor:65,
+  suspension:45,
+  rear_wing:65,
+  brakes:50,
+  cooling:60,
+});
+
+function urgentRepairComponents(damageState,components=[]){
+  return (components||[]).filter((component)=>
+    componentDamagePct(damageState,component)>=
+      num(URGENT_REPAIR_DAMAGE_PCT[component],Infinity)
+  );
+}
+
 function safetyValueSeconds(damageState,components,remainingLaps){
   const structuralWeights={
     suspension:0.030,
@@ -83,6 +99,7 @@ export function aiPitRepairDecision({
     .map(String)
     .filter((component)=>CAR_DAMAGE_COMPONENTS.includes(component))
     .filter((component)=>componentDamagePct(damageState,component)>=6);
+  const urgent=urgentRepairComponents(damageState,damaged);
 
   const baseResult={
     model:"rw5.3b.2c",
@@ -128,6 +145,7 @@ export function aiPitRepairDecision({
   const costFactor=Math.max(0.82,aggressionCost*trafficCost*intelligenceCost*positionCost);
 
   let best=null;
+  let bestUrgent=null;
   for(const selected of subsets(damaged)){
     const schedule=buildPitServiceSchedule({
       year,
@@ -171,23 +189,40 @@ export function aiPitRepairDecision({
     ){
       best=candidate;
     }
+    if(
+      urgent.some((component)=>candidate.repair_components.includes(component))&&(
+        !bestUrgent||
+        candidate.decision_margin_s>bestUrgent.decision_margin_s||
+        candidate.decision_margin_s===bestUrgent.decision_margin_s&&
+          candidate.repair_components.length<bestUrgent.repair_components.length
+      )
+    ){
+      bestUrgent=candidate;
+    }
   }
 
-  if(!best||best.decision_margin_s<=0)return {
+  const safetyOverride=Boolean(urgent.length&&remaining>2&&bestUrgent);
+  const chosen=safetyOverride&&(!best||best.decision_margin_s<=0)
+    ?bestUrgent
+    :best;
+
+  if(!chosen||chosen.decision_margin_s<=0&&!safetyOverride)return {
     ...baseResult,
     reason:"repair_cost_exceeds_value",
-    projected_stay_out_loss_s:best?.projected_stay_out_loss_s||0,
-    incremental_service_s:best?.incremental_service_s||0,
-    effective_pit_cost_s:best?.effective_pit_cost_s||0,
-    safety_value_s:best?.safety_value_s||0,
-    decision_margin_s:best?.decision_margin_s||0,
+    projected_stay_out_loss_s:chosen?.projected_stay_out_loss_s||0,
+    incremental_service_s:chosen?.incremental_service_s||0,
+    effective_pit_cost_s:chosen?.effective_pit_cost_s||0,
+    safety_value_s:chosen?.safety_value_s||0,
+    decision_margin_s:chosen?.decision_margin_s||0,
   };
 
   return {
     ...baseResult,
-    ...best,
+    ...chosen,
     should_repair:true,
     dedicated_stop:!alreadyStopping,
-    reason:alreadyStopping?"opportunistic_repair_value":"dedicated_repair_value",
+    reason:safetyOverride&&chosen.decision_margin_s<=0
+      ?"safety_repair"
+      :alreadyStopping?"opportunistic_repair_value":"dedicated_repair_value",
   };
 }

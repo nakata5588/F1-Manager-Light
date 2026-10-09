@@ -9,6 +9,8 @@ import {
   normalizeRaceWeekendEngineVersion,
 } from "../src/race2/contracts/raceContracts.js";
 import { buildRaceWeekendInput } from "../src/race2/adapters/GameStateInputAdapter.js";
+import { createRaceState } from "../src/race2/core/RaceState.js";
+import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 import { mechanicalRetirementChance } from "../src/engine/RaceControlEngine.js";
 import { carReliabilityProfile } from "../src/domain/carReliability.js";
 
@@ -281,4 +283,66 @@ test("RW10A adapter preserves a nullable no-stop target instead of coercing it t
     assert.equal(car.resourceSetup.strategy.pitPlan,"no_stop");
     assert.equal(car.resourceSetup.strategy.plannedStopLap,null);
   }
+});
+
+test("RW39 production GameState adapter propagates driver racecraft and player strategy to canonical RaceState",()=>{
+  const gs=fixture();
+  gs.driverRatings=gs.driverRatings.map(row=>row.driver_id==="D1"
+    ?{...row,overtaking:92,defending:81,race_intelligence:87,aggression:73,tire_management:89}
+    :row
+  );
+  gs.raceWeekendState.race_strategy={
+    ...(gs.raceWeekendState.race_strategy||{}),
+    selections:{
+      D1:{pace_mode:"attack",pit_plan:"no_stop",start_tyre_id:null},
+      D2:{pace_mode:"conserve",pit_plan:"no_stop",start_tyre_id:null},
+    },
+  };
+  const source=buildRaceWeekendInput(gs,{gp:{gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"}});
+  const driver=source.drivers.find(row=>row.driverId==="D1");
+  const player=source.cars.find(row=>row.driverId==="D1");
+  const ai=source.cars.find(row=>row.driverId==="D2");
+  assert.equal(driver.performance.tyreManagement,89);
+  assert.equal(driver.performance.raceIntelligence,87);
+  assert.equal(driver.performance.aggression,73);
+  assert.equal(player.resourceSetup.strategy.paceMode,"attack");
+  assert.equal(ai.resourceSetup.strategy.paceMode,"conserve");
+  assert.ok(player.resourceSetup.tyres.length>0);
+  assert.ok(player.resourceSetup.tyres.every(row=>row.tyre_id&&Number.isFinite(row.grip_index)&&Number.isFinite(row.wear_rate)));
+});
+
+test("RW39 production 1980 input flows into canonical tyre selection, driver/car snapshots and pace",()=>{
+  const gs=fixture();
+  gs.driverRatings=gs.driverRatings.map(row=>row.driver_id==="D1"
+    ?{...row,pace:93,race_intelligence:90,aggression:87,tire_management:92}
+    :row
+  );
+  const gp={gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"};
+  const preview=buildRaceWeekendInput(gs,{gp});
+  const available=preview.cars.find(row=>row.driverId==="D1").resourceSetup.tyres;
+  assert.ok(available.length>0);
+  const chosen=available[available.length-1];
+  gs.raceWeekendState.race_strategy={
+    ...gs.raceWeekendState.race_strategy,
+    selections:{
+      D1:{pace_mode:"attack",start_tyre_id:chosen.tyre_id,pit_plan:"no_stop"},
+      D2:{pace_mode:"conserve",pit_plan:"no_stop"},
+    },
+  };
+  const input=buildRaceWeekendInput(gs,{gp});
+  const state=createRaceState(input,{stepMs:100});
+  const player=state.cars.find(car=>car.driverId==="D1");
+  const ai=state.cars.find(car=>car.driverId==="D2");
+  const sourceDriver=input.drivers.find(row=>row.driverId==="D1");
+  const sourceCar=input.cars.find(row=>row.driverId==="D1");
+  assert.equal(player.tyre.tyre_id,chosen.tyre_id);
+  assert.equal(player.tyre.grip_index,chosen.grip_index);
+  assert.equal(player.tyre.wear_rate,chosen.wear_rate);
+  assert.equal(player.resources.paceMode,"attack");
+  assert.equal(ai.resources.paceMode,"conserve");
+  assert.deepEqual(player.performance.driver,sourceDriver.performance);
+  assert.equal(player.performance.car.power,sourceCar.performance.power);
+  assert.equal(player.performance.car.chassis,sourceCar.performance.chassis);
+  assert.ok(Number.isFinite(raceTargetSpeedProfile(state,player).targetSpeedKmh));
+  assert.ok(Number.isFinite(raceTargetSpeedProfile(state,ai).targetSpeedKmh));
 });

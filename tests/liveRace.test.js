@@ -193,25 +193,27 @@ test("race incident feed adds a cautious medical status after collisions",()=>{
 });
 
 test("high-risk crash events carry medical concern into the observed Race Feed",()=>{
-  let gs=null;
-  let incident=null;
-  for(let index=0;index<160&&!incident;index+=1){
+  let observedEvent=null;
+  for(let index=0;index<160&&!observedEvent;index+=1){
     const candidate=createLiveRaceState(fixture(`medical-feed-${index}`),{gp});
-    const found=(candidate.raceWeekendState.race_strategy.race_control_plan?.incidents||[])
-      .find((row)=>["high","critical"].includes(String(row?.severity||"").toLowerCase())&&/accident|collision/i.test(String(row?.kind||row?.reason||"")));
-    if(found){
-      gs=candidate;
-      incident=found;
-    }
+    // Future hazards are intentionally recalculated when Live Race advances.
+    // Assert against the event stream produced by that recalculation rather
+    // than against a provisional pre-advance plan row that may be replaced.
+    const advanced=advanceLiveRace(candidate,{
+      gp,
+      laps:Number(candidate?.raceWeekendState?.live_race?.total_laps)||12,
+    });
+    observedEvent=(advanced?.raceWeekendState?.live_race?.events||[])
+      .find((row)=>
+        row?.medical_concern===true&&
+        /accident|collision/i.test(String(row?.incident_kind||row?.incident_reason||""))
+      )||null;
   }
-  assert.ok(gs&&incident,"expected a deterministic high-risk crash seed");
-  gs=advanceTo(gs,Number(incident.lap));
-  const event=(gs.raceWeekendState.live_race.events||[])
-    .find((row)=>String(row?.driver_id)===String(incident.driver_id)&&Number(row?.lap)===Number(incident.lap));
-  assert.ok(event);
-  assert.equal(event.medical_concern,true);
-  assert.ok(Number(event.injury_probability)>0);
-  assert.match(event.message,/might be injured/i);
+
+  assert.ok(observedEvent,"expected a deterministic observed high-risk crash event");
+  assert.equal(observedEvent.medical_concern,true);
+  assert.ok(Number(observedEvent.injury_probability)>0);
+  assert.match(observedEvent.message,/might be injured/i);
 });
 
 test("Track 2.0A live sector pace keeps driver sector character stable between laps",()=>{

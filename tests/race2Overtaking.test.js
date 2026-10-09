@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
+  RACE_BATTLE_CONTACT_PROXIMITY_M,
   RACE_BATTLE_LATERAL_OFFSET_M,
+  RACE_BATTLE_SIDE_BY_SIDE_GAP_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
   initialBattleState,
@@ -14,7 +16,7 @@ import {
   raceOvertakeOpportunityFactors,
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
-import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
+import { RACE_TRAFFIC_HARD_GAP_M, raceTrafficContext } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 
 function input({seed="rw8.6",laps=10,stepMs=100,overtakingDifficulty=50}={}){
@@ -351,6 +353,71 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
   }
 });
 
+test("RW35 local yellow blocks only battles in the affected sector",()=>{
+  let state=runningState({seed:"rw35-local-yellow"});
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,sector:1,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,sector:1,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:92,overtaking:97,defending:70,raceIntelligence:92,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+
+  for(let bucket=0;bucket<80;bucket+=1){
+    const candidate={...state,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{
+      stepMs:100,
+      blockedSectors:[1],
+    });
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+
+  const clearSector=patchCars(state,{
+    C1:{sector:2,absoluteDistanceM:430,distanceAlongLapM:430},
+    C2:{sector:2,absoluteDistanceM:421,distanceAlongLapM:421},
+  });
+  let started=false;
+  for(let bucket=0;bucket<80&&!started;bucket+=1){
+    const candidate={...clearSector,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{
+      stepMs:100,
+      blockedSectors:[1],
+    });
+    started=resolved.events.some((event)=>event.type==="overtake_started");
+  }
+  assert.equal(started,true);
+});
+
+test("RW35 an active battle is neutralized when it enters the local-yellow sector",()=>{
+  let state=runningState({seed:"rw35-local-yellow-active"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:430,distanceAlongLapM:430,sector:2,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:429,distanceAlongLapM:429,sector:2,speedMs:46,speedKmh:165.6},
+  });
+  state=manualBattle(state,{expiresAtMs:8000});
+
+  const resolved=resolveRaceOvertaking(state,state.cars,{
+    stepMs:100,
+    blockedSectors:[2],
+  });
+  assert.equal(car({cars:resolved.cars},"C1").battle.phase,"none");
+  assert.equal(car({cars:resolved.cars},"C2").battle.phase,"none");
+  const aborted=resolved.events.find((event)=>event.type==="overtake_aborted");
+  assert.equal(aborted?.payload?.reason,"local_yellow");
+  assert.deepEqual(aborted?.payload?.restrictedSectors,[2]);
+});
+
 test("RW32 attack versus conserve materially changes an otherwise equal overtake opportunity",()=>{
   let state=runningState();
   const equalPerformance={
@@ -545,7 +612,7 @@ test("RW25 driver and car strength materially bias an active side-by-side battle
   assert.equal(next.classification[0].carId,"C2");
 });
 
-test("RW8.6 a deterministic close-range attempt enters canonical side-by-side state",()=>{
+test("RW36 a deterministic close-range attempt approaches before going side-by-side",()=>{
   let base=runningState();
   base=patchCars(base,{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,effectiveCornerSeverity:0},
@@ -568,15 +635,23 @@ test("RW8.6 a deterministic close-range attempt enters canonical side-by-side st
   assert.ok(chosen,"expected at least one deterministic attempt window");
   const attacker=car({cars:chosen.resolved.cars},"C2");
   const defender=car({cars:chosen.resolved.cars},"C1");
-  assert.equal(attacker.battle.phase,"side_by_side");
-  assert.equal(defender.battle.phase,"side_by_side");
+  assert.equal(attacker.battle.phase,"approach");
+  assert.equal(defender.battle.phase,"approach");
   assert.equal(attacker.battle.opponentCarId,"C1");
   assert.equal(defender.battle.opponentCarId,"C2");
-  assert.equal(attacker.lateralOffsetM,-defender.lateralOffsetM);
-  assert.equal(Math.abs(attacker.lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
+  assert.ok(Math.abs(attacker.lateralOffsetM)>Math.abs(defender.lateralOffsetM));
+  assert.ok(Math.abs(attacker.lateralOffsetM)<RACE_BATTLE_LATERAL_OFFSET_M);
 
   const again=resolveRaceOvertaking(chosen.state,chosen.state.cars,{stepMs:100});
   assert.deepEqual(again,chosen.resolved);
+
+  let canonical={...chosen.state,cars:chosen.resolved.cars};
+  for(let index=0;index<8&&car(canonical,"C2").battle.phase==="approach";index+=1){
+    canonical=stepRaceState(canonical);
+  }
+  assert.equal(car(canonical,"C2").battle.phase,"side_by_side");
+  assert.equal(car(canonical,"C1").battle.phase,"side_by_side");
+  assert.equal(Math.abs(car(canonical,"C2").lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
 });
 
 test("RW8.6 active side-by-side battle may close below longitudinal hard gap without overlap",()=>{
@@ -832,6 +907,29 @@ test("RW8.6 contact generation stays pure and leaves consequences to RW8.10",()=
   assert.equal(car(contactState,"C2").battle.phase,"yielding");
 });
 
+test("RW35 contact cannot be generated while battle cars are physically far apart",()=>{
+  for(let index=0;index<240;index+=1){
+    let state=runningState({seed:`far-contact-${index}`,stepMs:1000});
+    state=patchCars(state,{
+      C1:{
+        absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+        effectiveCornerSeverity:1,
+        performance:{car:null,driver:{mistakePropensity:100,aggression:100,raceIntelligence:10}},
+      },
+      C2:{
+        absoluteDistanceM:100-(RACE_BATTLE_CONTACT_PROXIMITY_M+4),
+        distanceAlongLapM:100-(RACE_BATTLE_CONTACT_PROXIMITY_M+4),
+        speedMs:40,speedKmh:144,
+        effectiveCornerSeverity:1,
+        performance:{car:null,driver:{mistakePropensity:100,aggression:100,raceIntelligence:10}},
+      },
+    });
+    state=manualBattle(state,{expiresAtMs:8000});
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:1000});
+    assert.ok(!resolved.events.some((event)=>event.type==="contact"));
+  }
+});
+
 test("RW8.6 Live and Fast keep identical battles, events and classification",()=>{
   let initial=runningState({seed:"rw8.6-parity"});
   initial=patchCars(initial,{
@@ -981,4 +1079,218 @@ test("RW11B a decisive pass in a train keeps lateral separation until hard gap i
     car(canonical,"C2").absoluteDistanceM-car(canonical,"C1").absoluteDistanceM>=
       RACE_TRAFFIC_HARD_GAP_M-1e-6
   );
+});
+
+test("RW36 committed overtake approaches off-line before becoming side-by-side",()=>{
+  let state=runningState({seed:"rw36-approach"});
+  const attemptId="rw36:approach:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,lateralOffsetM:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:8000},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:47,speedKmh:169.2,lateralOffsetM:0.3,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:8000},
+    },
+  });
+
+  const approaching=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.equal(car({cars:approaching.cars},"C2").battle.phase,"approach");
+  assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)>0);
+  assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)<RACE_BATTLE_LATERAL_OFFSET_M);
+  assert.equal(
+    Math.sign(car({cars:approaching.cars},"C2").lateralOffsetM),
+    -Math.sign(car({cars:approaching.cars},"C1").lateralOffsetM)
+  );
+  assert.ok(approaching.bypassPairs.has("C1|C2"));
+
+  const closeState=patchCars({...state,cars:approaching.cars},{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100},
+    C2:{absoluteDistanceM:100-(RACE_BATTLE_SIDE_BY_SIDE_GAP_M-0.5),distanceAlongLapM:100-(RACE_BATTLE_SIDE_BY_SIDE_GAP_M-0.5)},
+  });
+  const committed=resolveRaceOvertaking(closeState,closeState.cars,{stepMs:100});
+  assert.equal(car({cars:committed.cars},"C2").battle.phase,"side_by_side");
+  assert.equal(car({cars:committed.cars},"C1").battle.phase,"side_by_side");
+  assert.equal(Math.abs(car({cars:committed.cars},"C2").lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
+});
+
+test("RW36 tyre life and damage materially change the same battle opportunity",()=>{
+  let state=runningState({seed:"rw36-racecraft-factors"});
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:{...car(state,"C1").tyre,grip_index:74,condition:52,grip_multiplier:0.97},
+      damage:{pace_loss_s_per_lap:1.4,aero_loss_pct:22,handling_loss_pct:35,braking_loss_pct:12},
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:47,speedKmh:169.2,effectiveCornerSeverity:0,
+      tyre:{...car(state,"C2").tyre,grip_index:80,condition:94,grip_multiplier:1},
+      damage:{pace_loss_s_per_lap:0,aero_loss_pct:0,handling_loss_pct:0,braking_loss_pct:0},
+    },
+  });
+  const advantage=raceOvertakeOpportunityFactors(
+    state,
+    car(state,"C2"),
+    car(state,"C1"),
+    {gapM:9,closingSpeedMs:2,towStrength:0.4}
+  );
+
+  const reversed=patchCars(state,{
+    C1:{tyre:{...car(state,"C1").tyre,grip_index:80,condition:94,grip_multiplier:1},damage:{pace_loss_s_per_lap:0,aero_loss_pct:0,handling_loss_pct:0,braking_loss_pct:0}},
+    C2:{tyre:{...car(state,"C2").tyre,grip_index:74,condition:52,grip_multiplier:0.97},damage:{pace_loss_s_per_lap:1.4,aero_loss_pct:22,handling_loss_pct:35,braking_loss_pct:12}},
+  });
+  const disadvantage=raceOvertakeOpportunityFactors(
+    reversed,
+    car(reversed,"C2"),
+    car(reversed,"C1"),
+    {gapM:9,closingSpeedMs:2,towStrength:0.4}
+  );
+
+  assert.ok(advantage.probability>disadvantage.probability);
+  assert.ok(advantage.tyreConditionEdge>0);
+  assert.ok(advantage.damageEdge>0);
+  assert.ok(advantage.contributions.tyreWear>0);
+  assert.ok(advantage.contributions.damage>0);
+});
+
+test("RW36 equal Hard tyres still allow a genuine driver/car advantage to pass physically",()=>{
+  let state=runningState({seed:"rw36-hard-hard-pass"});
+  const hardTyre=(row)=>({
+    ...row.tyre,
+    tyre_id:"rw36_hard",
+    compound:"Hard",
+    category:"dry",
+    grip_index:74,
+    condition:100,
+    grip_multiplier:1,
+    temperature_c:row.tyre?.optimal_temperature_c??96,
+  });
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:hardTyre(car(state,"C1")),
+      resources:{...car(state,"C1").resources,paceMode:"balanced"},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:hardTyre(car(state,"C2")),
+      resources:{...car(state,"C2").resources,paceMode:"balanced"},
+    },
+  });
+
+  let started=false;
+  let completed=false;
+  for(let index=0;index<240&&!completed;index+=1){
+    state=stepRaceState(state);
+    started=started||state.events.some((event)=>event.type==="overtake_started");
+    completed=state.events.some((event)=>event.type==="overtake_completed");
+  }
+
+  assert.equal(started,true);
+  assert.equal(completed,true);
+  assert.equal(state.classification[0].carId,"C2");
+});
+
+test("RW37 overtake approach keeps the defender tow inside a traffic train",()=>{
+  let state=runningState({seed:"rw37-approach-tow"});
+  const attemptId="rw37:approach-tow:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:120,distanceAlongLapM:120,speedMs:60,speedKmh:216,
+      effectiveCornerSeverity:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+    C2:{
+      absoluteDistanceM:108,distanceAlongLapM:108,speedMs:60,speedKmh:216,
+      effectiveCornerSeverity:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+  });
+  state={
+    ...state,
+    cars:[
+      ...state.cars,
+      {
+        ...car(state,"C1"),
+        carId:"C3",
+        driverId:"D3",
+        teamId:"T3",
+        gridPosition:3,
+        absoluteDistanceM:136,
+        distanceAlongLapM:136,
+        battle:initialBattleState(),
+        lateralOffsetM:0,
+      },
+    ],
+  };
+
+  const context=raceTrafficContext(state,car(state,"C2"));
+  assert.equal(context.aheadCarId,"C3");
+  assert.equal(context.slipstream.aheadCarId,"C1");
+  assert.equal(context.slipstream.active,true);
+  assert.ok(context.slipstream.targetBonusKmh>0);
+});
+
+test("RW37 approach racecraft affects the attacker before side-by-side without slowing the defender",()=>{
+  let state=runningState({seed:"rw37-approach-racecraft"});
+  const attemptId="rw37:racecraft:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:120,distanceAlongLapM:120,speedMs:50,speedKmh:180,
+      performance:{
+        car:{race:62,power:62,chassis:64},
+        driver:{raceScore:64,overtaking:55,defending:58,raceIntelligence:62,mistakePropensity:15,aggression:45},
+      },
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+    C2:{
+      absoluteDistanceM:110,distanceAlongLapM:110,speedMs:50,speedKmh:180,
+      performance:{
+        car:{race:92,power:94,chassis:90},
+        driver:{raceScore:95,overtaking:97,defending:90,raceIntelligence:95,mistakePropensity:10,aggression:65},
+      },
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+  });
+
+  const attackerMultiplier=raceBattlePaceMultiplier(state,car(state,"C2"));
+  const defenderMultiplier=raceBattlePaceMultiplier(state,car(state,"C1"));
+  assert.ok(attackerMultiplier>1.02);
+  assert.equal(defenderMultiplier,1);
+});
+
+test("RW40B reaching side-by-side gets a separate physical time budget without granting distance",()=>{
+  const attemptId="rw40b:physical-phase";
+  let state=runningState({seed:"rw40b-timed-approach"});
+  const previous=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",
+        side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:150},
+    },
+    C2:{
+      absoluteDistanceM:92.7,distanceAlongLapM:92.7,speedMs:48,speedKmh:172.8,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",
+        side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:150},
+    },
+  });
+  const proposed=patchCars(previous,{
+    C2:{absoluteDistanceM:93,distanceAlongLapM:93},
+  });
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+  assert.equal(attacker.battle.phase,"side_by_side");
+  assert.equal(defender.battle.phase,"side_by_side");
+  assert.equal(attacker.absoluteDistanceM,93,"no artificial movement is allowed");
+  assert.ok(attacker.battle.expiresAtMs>=3600,"second phase has a real duel window");
+  assert.equal(attacker.battle.expiresAtMs,defender.battle.expiresAtMs);
+  const transition=result.events.find(e=>e.type==="overtake_side_by_side");
+  assert.ok(transition);
+  assert.equal(transition.payload.attemptId,attemptId);
+  assert.ok(transition.payload.duelBudgetMs>=3500);
+  assert.equal(transition.payload.duelExpiresAtMs,attacker.battle.expiresAtMs);
+  assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
+    "side-by-side is not the same as a completed pass");
 });

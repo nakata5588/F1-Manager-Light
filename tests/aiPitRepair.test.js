@@ -21,6 +21,25 @@ test("RW5.3B.2C ignores minor damage when a dedicated stop cannot pay back",()=>
   assert.equal(decision.dedicated_stop,false);
 });
 
+test("RW35 meaningful structural damage can trigger a safety-driven repair stop",()=>{
+  const damage=damageStateFromComponents({suspension:50});
+  const decision=aiPitRepairDecision({
+    year:1980,
+    damageState:damage,
+    remainingLaps:6,
+    alreadyStopping:false,
+    pitLaneLossS:24,
+    controlType:"GREEN",
+    raceIntelligence:70,
+    aggression:50,
+    trackOvertakingDifficulty:60,
+  });
+  assert.equal(decision.should_repair,true);
+  assert.equal(decision.dedicated_stop,true);
+  assert.ok(decision.repair_components.includes("suspension"));
+  assert.equal(decision.reason,"safety_repair");
+});
+
 test("RW5.3B.2C repairs valuable damage opportunistically during an existing stop",()=>{
   const damage=damageStateFromComponents({front_wing:70});
   const decision=aiPitRepairDecision({
