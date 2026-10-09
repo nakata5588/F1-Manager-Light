@@ -26,6 +26,28 @@ export function genericTyresForYear(yearInput){
   ];
 }
 
+// Bridgestone's publicly announced 2000 Australian GP dry allocation was
+// Soft + Medium (Autosport, 3 March 2000). This is a factual event selection,
+// not a claim that the numerical grip/wear figures below were measured in 2000.
+// The grip/wear parameters are deliberately estimated game-model values.
+// https://www.autosport.com/f1/news/bridgestone-prepares-for-50th-race-5036487/5036487/
+// The 2000 race rules permitted one chosen dry specification per driver after
+// qualifying, with separate wet-weather allocations (Bridgestone F1 archive).
+// https://ms.bridgestone.co.jp/special/document/f1/en/techs_regs/2000/
+const AUSTRALIA_2000_ALLOCATION=Object.freeze([
+  {tyre_id:"bs_2000_aus_medium",year_from:2000,year_to:2000,supplier:"Bridgestone",compound_name:"Medium",category:"dry",grip_index:77,wear_rate:0.018,warmup_time_s:2.55,model_parameters_estimated:true},
+  {tyre_id:"bs_2000_aus_soft",year_from:2000,year_to:2000,supplier:"Bridgestone",compound_name:"Soft",category:"dry",grip_index:80,wear_rate:0.022,warmup_time_s:2.20,model_parameters_estimated:true},
+  {tyre_id:"bs_2000_aus_inter",year_from:2000,year_to:2000,supplier:"Bridgestone",compound_name:"Intermediate",category:"intermediate",grip_index:65,wear_rate:0.018,warmup_time_s:3.1,model_parameters_estimated:true},
+  {tyre_id:"bs_2000_aus_wet",year_from:2000,year_to:2000,supplier:"Bridgestone",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5,model_parameters_estimated:true},
+]);
+
+export function historicalEventTyres(yearInput,trackIdInput){
+  const year=Number(yearInput);
+  const trackId=String(trackIdInput||"");
+  if(year===2000&&trackId==="tr_0019")return AUSTRALIA_2000_ALLOCATION.map(t=>({...t}));
+  return null;
+}
+
 export function activeTyresForYear(gs,yearInput=null){
   const year=Number(yearInput??gs?.activeYear);
   if(Array.isArray(gs?.tyres)&&gs.tyres.length)return gs.tyres;
@@ -47,10 +69,22 @@ export function activeTyresForYear(gs,yearInput=null){
   return source.filter((row)=>num(row?.year_to,row?.year??row?.year_from??NaN)===nearest);
 }
 
-export function tyresForTeam(gs,teamId,{year=null}={}){
+export function tyresForTeam(gs,teamId,{year=null,trackId=null}={}){
   const world=gs?.raceStrategyWorld||{};
   const supplier=world?.teamSuppliers?.[String(teamId)]||null;
-  const all=activeTyresForYear(gs,year);
+  const effectiveYear=Number(year??gs?.raceWeekendState?.year??gs?.activeYear);
+  const effectiveTrack=String(trackId??gs?.raceWeekendState?.track_id??"");
+  const eventAllocation=historicalEventTyres(effectiveYear,effectiveTrack);
+  // Respect real, explicitly supplied historical tyre data. Replace only the
+  // generic/yearless fallback with a verified per-GP dry compound allocation.
+  const explicitlySupplied=Array.isArray(gs?.tyres)&&gs.tyres.length>0;
+  const hasYearDatabase=Array.isArray(gs?.dbTyres)&&gs.dbTyres.some(t=>
+    effectiveYear>=num(t?.year_from,t?.year??Infinity)&&
+    effectiveYear<=num(t?.year_to,t?.year??-Infinity)
+  );
+  const all=eventAllocation&&!explicitlySupplied&&!hasYearDatabase
+    ?eventAllocation
+    :activeTyresForYear(gs,effectiveYear);
   const matching=supplier
     ?all.filter((row)=>String(row?.supplier||"")===String(supplier))
     :[];
