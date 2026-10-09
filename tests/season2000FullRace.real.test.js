@@ -205,11 +205,12 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     lastAttemptAtMinute:times.length?Number((times[times.length-1]/60000).toFixed(2)):null,
     passesByTeam,passesByDriver,
     eventTypes:behaviour.eventTypes,
-    note:"Main starts battles immediately in side_by_side state; no explicit side-by-side transition event exists yet. Future RW38 diagnostics are separate PRs.",
+    note:"Integrated RW35–RW40 race physics: use canonical phase/event evidence, and distinguish actual same-lap position passes from lapping.",
   };
   assert.equal(behaviour.fieldSize,22);
   assert.equal(battleAudit.completed,Object.values(passesByDriver).reduce((s,n)=>s+n,0));
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
+  console.log("REAL_2000_RW40_INTEGRATION_RETEST="+JSON.stringify({baselineCommit:"1628d7f4ebe54b7d9d9ffd0c220e961981affb7c",scenario:"Australia 2000",canonicalSteps:fast.tick,liveAutosimParity:true,attempts:battleAudit.attempts,completed:battleAudit.completed,completionPct:battleAudit.completionPct,events:behaviour.eventTypes}));
 
   const summary={
     gp:gp.gp_name,year:2000,
