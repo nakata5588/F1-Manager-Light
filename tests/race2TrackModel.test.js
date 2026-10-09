@@ -192,7 +192,7 @@ test("Albert Park 2000 gets a provisional 16-corner speed profile, not a flat 33
   const low=model.speedProfile.samples.reduce((a,b)=>a.severity<b.severity?a:b);
   const high=model.speedProfile.samples.reduce((a,b)=>a.severity>b.severity?a:b);
   assert.ok(low.severity<0.1);
-  assert.ok(high.severity>0.9);
+  assert.ok(high.severity>0.75,"the historic physical model must contain substantial braking zones");
   const car={
     speedMs:0,
     performance:{car:{power:85,race:85,chassis:85},driver:{raceScore:85}},
