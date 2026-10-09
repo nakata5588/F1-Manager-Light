@@ -170,6 +170,9 @@ function initialFuel(input,inputCar){
 export function initialRaceResources(input,inputCar,driver){
   const fuel=initialFuel(input,inputCar);
   const tyre=initialTyre(input,inputCar,driver);
+  const drySpecificationLocked=Boolean(
+    inputCar?.resourceSetup?.strategy?.drySpecificationLocked&&tyre.category==="dry"
+  );
   const paceMode=String(inputCar?.resourceSetup?.strategy?.paceMode??"balanced");
   return {
     tyre,
@@ -178,7 +181,8 @@ export function initialRaceResources(input,inputCar,driver){
     resources:{
       paceMode:RACE_PACE_MODES[paceMode]?paceMode:"balanced",
       strategy:{
-        nextTyreId:inputCar?.resourceSetup?.strategy?.nextTyreId??null,
+        nextTyreId:drySpecificationLocked?tyre.tyre_id:inputCar?.resourceSetup?.strategy?.nextTyreId??null,
+        drySpecificationLocked,
         pitPlan:inputCar?.resourceSetup?.strategy?.pitPlan??null,
         plannedStopLap:finite(inputCar?.resourceSetup?.strategy?.plannedStopLap,null),
         aiControlled:inputCar?.resourceSetup?.strategy?.aiControlled!==false,
@@ -197,7 +201,7 @@ export function initialRaceResources(input,inputCar,driver){
           warmup_time_s:finite(row?.warmup_time_s,2.5),
           wet_efficiency:finite(row?.wet_efficiency,null),
         }))
-        .filter((row)=>row.tyre_id),
+        .filter((row)=>row.tyre_id&&(!drySpecificationLocked||row.category!=="dry"||row.tyre_id===tyre.tyre_id)),
       initialFuelKg:fuel.initialFuelKg,
       fuelBurnKgPerKm:fuel.burnKgPerKm,
       fuelReserveKg:fuel.reserveKg,
