@@ -1260,3 +1260,37 @@ test("RW37 approach racecraft affects the attacker before side-by-side without s
   assert.equal(defenderMultiplier,1);
 });
 
+test("RW40B reaching side-by-side gets a separate physical time budget without granting distance",()=>{
+  const attemptId="rw40b:physical-phase";
+  let state=runningState({seed:"rw40b-timed-approach"});
+  const previous=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",
+        side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:150},
+    },
+    C2:{
+      absoluteDistanceM:92.7,distanceAlongLapM:92.7,speedMs:48,speedKmh:172.8,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",
+        side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:150},
+    },
+  });
+  const proposed=patchCars(previous,{
+    C2:{absoluteDistanceM:93,distanceAlongLapM:93},
+  });
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+  assert.equal(attacker.battle.phase,"side_by_side");
+  assert.equal(defender.battle.phase,"side_by_side");
+  assert.equal(attacker.absoluteDistanceM,93,"no artificial movement is allowed");
+  assert.ok(attacker.battle.expiresAtMs>=3600,"second phase has a real duel window");
+  assert.equal(attacker.battle.expiresAtMs,defender.battle.expiresAtMs);
+  const transition=result.events.find(e=>e.type==="overtake_side_by_side");
+  assert.ok(transition);
+  assert.equal(transition.payload.attemptId,attemptId);
+  assert.ok(transition.payload.duelBudgetMs>=3500);
+  assert.equal(transition.payload.duelExpiresAtMs,attacker.battle.expiresAtMs);
+  assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
+    "side-by-side is not the same as a completed pass");
+});
