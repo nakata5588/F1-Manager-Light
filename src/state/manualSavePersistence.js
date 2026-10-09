@@ -77,6 +77,24 @@ export function createManualSaveWriter({
         }
       }
 
+      // A stale Quick Save or UI slot must never overwrite a different
+      // career. Legacy saves without an identity remain readable/writable.
+      if (destination) {
+        const existing = storage.getItem(destination);
+        if (existing) {
+          try {
+            const parsed = JSON.parse(existing);
+            const existingCareer = parsed?.gameState?.saveMeta?.seed ?? parsed?.meta?.seed;
+            if (existingCareer && careerId && String(existingCareer) !== careerId) {
+              return failedSave(meta, new Error("The selected save slot belongs to another career."));
+            }
+          } catch {
+            // Legacy or unreadable data should not be silently overwritten.
+            return failedSave(meta, new Error("The selected save slot is unreadable; the previous data was preserved."));
+          }
+        }
+      }
+
       let key = destination;
       if (!key) {
         // Save As creates a new slot. Avoid same-millisecond overwrites and
