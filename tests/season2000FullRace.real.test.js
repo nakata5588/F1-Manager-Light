@@ -85,6 +85,19 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(input.year,2000);
   assert.equal(input.entries.length,22);
   assert.equal(input.drivers.length,22);
+  if(input.cars.length!==22){
+    const carIds=new Set(input.cars.map(c=>c.carId));
+    const missing=input.entries.filter(e=>!carIds.has(e.carId)).map(e=>({
+      driverId:e.driverId,teamId:e.teamId,carId:e.carId,
+      garages:e.teamId===String(ferrari.team_id)
+        ?(gs.garage?.cars||[]).map(c=>c.id)
+        :(gs.aiTechnicalWorld?.teams?.[e.teamId]?.garage?.cars||[]).map(c=>c.id),
+    }));
+    console.log("REAL_2000_MISSING_CARS="+JSON.stringify({missing,carCount:input.cars.length,
+      inputTeamCount:new Set(input.entries.map(e=>e.teamId)).size,
+      weekendEntries:gs.raceWeekendState.entrants.length,
+      raceEntries:gs.raceEntryState.entries.length}));
+  }
   assert.equal(input.cars.length,22);
   assert.equal(input.startingGrid.length,22);
   assert.equal(new Set(input.cars.map(c=>c.carId)).size,22);
