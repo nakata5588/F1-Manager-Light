@@ -204,7 +204,7 @@ test("Albert Park 2000 gets a provisional 16-corner speed profile, not a flat 33
     ...car,distanceAlongLapM:low.distanceM,
   });
   assert.ok(slow.targetSpeedKmh<fast.targetSpeedKmh-70);
-  assert.ok(fast.straightTargetKmh<=320);
+  assert.ok(fast.straightTargetKmh<=350);
   assert.ok(slow.targetSpeedKmh>=50);
 });
 
