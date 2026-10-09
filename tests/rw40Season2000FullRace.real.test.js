@@ -108,8 +108,26 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   for(const car of input.cars){
     assert.equal(car.performance.race,teamCarPerformance(gs,car.teamId,car.driverId).race);
   }
+  // Integration guard: the same official 2000 grid must use real nominated
+  // Bridgestone dry compounds and a physical, non-neutral speed profile.
+  const combinedDryTyreNames=[...new Set(input.cars.flatMap(c=>
+    c.resourceSetup?.tyres||[]).filter(t=>t.category==="dry").map(t=>t.compound_name))].sort();
+  assert.deepEqual(combinedDryTyreNames,["Medium","Soft"],
+    "2000 Australia was supplied Bridgestone Medium/Soft, not generic Hard/Soft");
+  assert.ok((input.track.speedProfile?.samples?.length||0)>=100,
+    "Albert Park 2000 must not regress to a neutral all-straight track");
+  const combinedTyreSupplier=new Set(input.cars.flatMap(c=>
+    c.resourceSetup?.tyres||[]).map(t=>t.supplier));
+  assert.deepEqual([...combinedTyreSupplier],["Bridgestone"]);
   const initial=startRaceState(createRaceState(input));
   assert.equal(initial.cars.length,22);
+  const withDrySpec=initial.cars.filter(car=>car.tyre.category==="dry");
+  assert.ok(withDrySpec.length>=18,"dry running grid should have most cars on dry rubber");
+  assert.ok(withDrySpec.every(car=>
+    car.resources.strategy.drySpecificationLocked===true&&
+    car.resources.availableTyres.filter(t=>t.category==="dry").length===1&&
+    car.resources.availableTyres.some(t=>t.tyre_id===car.tyre.tyre_id)
+  ),"historical single dry specification must be enforced by Race Core");
   const fast=runFastRaceToEnd(initial,{maxSteps:150000});
   assert.equal(fast.status,"finished");
   assert.ok(fast.tick>1000);
@@ -329,6 +347,21 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     historicalReference:{winnerFinishMs:5641987,fastestLapMs:91481},
   };
   console.log("REAL_2000_DRY_PACE_CONTROL="+JSON.stringify(audit));
+  console.log("REAL_2000_COMBINED_TRACK_TYRES="+JSON.stringify({
+    baselineCommit:"4b314dae5c2153f5883526f9dc436373cd1b76f0",
+    year:2000,track:input.track.trackId,
+    physicalSpeedSource:input.track.speedProfile?.source??null,
+    corners:input.track.speedProfile?.referenceCorners??null,
+    sampledMaxSpeedKmh:Number(sampledMaxSpeedKmh.toFixed(3)),
+    dryAvailable:combinedDryTyreNames,tyreSupplier:[...combinedTyreSupplier],
+    startingCompounds:initial.cars.reduce((acc,car)=>{
+      const tyre=String(car.tyre?.compound||"unknown");
+      acc[tyre]=(acc[tyre]||0)+1;
+      return acc;
+    },{}),
+    lockedDrySpecCars:withDrySpec.length,
+    canonicalLiveAutosimParity:true,
+  }));
   console.log("REAL_2000_PACE_AUDIT="+JSON.stringify({
     track:input.track.trackId,
     profileSource:input.track?.speedProfile?.source||"missing",
