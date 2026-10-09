@@ -17,15 +17,37 @@ import {
 } from "../src/domain/teamConstructorBridge.js";
 import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 
-test("Team Profile initializes display name before historical logo candidates", async()=>{
-  const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
-  const nameIndex=source.indexOf("const name = team?.team_name");
-  const logoIndex=source.indexOf("const logoCandidates = useMemo");
-  assert.ok(nameIndex>=0,"Team Profile display name declaration must exist");
-  assert.ok(logoIndex>=0,"Team Profile logo resolver must exist");
-  assert.ok(nameIndex<logoIndex,"Team display name must be initialized before logo candidate resolution");
+test("Team Profile uses the real TeamLogo and historical logo candidates", async () => {
+  // The old assertion pinned a removed local variable. Instead, exercise
+  // the real TeamLogo renderer and verify its public integration contract.
+  const { createServer } = await import("vite");
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const server = await createServer({
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+    logLevel: "error",
+  });
+  try {
+    const { TeamLogo } = await server.ssrLoadModule("/src/components/entity/EntityVisuals.jsx");
+    const html = renderToStaticMarkup(
+      React.createElement(TeamLogo, {
+        teamId: "t_0005",
+        name: "Lotus",
+        year: 1980,
+        fallbacks: ["/logos/custom-lotus.png"],
+        editable: true,
+      })
+    );
+    assert.match(html, /alt="Lotus"/, "logo must use the resolved display name");
+    assert.match(html, /<img/, "historical logo candidates must produce an image element");
+    const modalSource = await readFile(new URL("../src/components/entity/TeamModal.jsx", import.meta.url), "utf8");
+    assert.match(modalSource, /<TeamLogo[\s\S]*?teamId=\{idStr\}[\s\S]*?name=\{name\}/,
+      "Team Profile must pass resolved team identity and name to the working logo component");
+  } finally {
+    await server.close();
+  }
 });
-
 
 
 

@@ -120,6 +120,9 @@ jobs:
       - name: Test Historical Team Strength principles
         run: npm run test:team-strength
 
+      - name: Test entity routes and Team Profile rendering
+        run: npm run test:entities
+
       - name: Test management systems
         run: npm run test:management
 
