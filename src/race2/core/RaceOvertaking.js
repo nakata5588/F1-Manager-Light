@@ -798,6 +798,17 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
       if(clearance>=-RACE_BATTLE_SIDE_BY_SIDE_GAP_M){
         const side=Number(previousBattle?.side)||1;
+        // A real approach consumes time while two cars are still longitudinally
+        // separated. Reusing its deadline for the physical side-by-side duel
+        // makes a successful closing manoeuvre time out almost immediately.
+        // Budget the second phase from the remaining *physical* clearance and
+        // the last observed relative speed, without granting distance or speed.
+        const remainingPassM=Math.max(0,-clearance)+RACE_OVERTAKE_DECISIVE_CLEARANCE_M;
+        const duelBudgetMs=battleDurationMs(state,remainingPassM,Math.max(0,actualClosingMs));
+        const duelExpiresAtMs=Math.max(
+          finite(previousBattle?.expiresAtMs,nextTime),
+          nextTime+duelBudgetMs
+        );
         attacker=withBattle(attacker,{
           opponentCarId:defender?.carId,
           role:"attacker",
@@ -805,7 +816,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           attemptId,
           startedTick:previousBattle?.startedTick,
           startedAtMs:previousBattle?.startedAtMs,
-          expiresAtMs:previousBattle?.expiresAtMs,
+          expiresAtMs:duelExpiresAtMs,
           contactRiskPct:0,
         });
         defender=withBattle(defender,{
@@ -815,7 +826,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           attemptId,
           startedTick:previousBattle?.startedTick,
           startedAtMs:previousBattle?.startedAtMs,
-          expiresAtMs:previousBattle?.expiresAtMs,
+          expiresAtMs:duelExpiresAtMs,
           contactRiskPct:0,
         });
         cars=setCar(setCar(cars,attacker),defender);
@@ -827,6 +838,8 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           actualClosingM,
           actualClosingMs,
           elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
+          duelBudgetMs,
+          duelExpiresAtMs,
         }));
         continue;
       }
