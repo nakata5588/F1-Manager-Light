@@ -57,7 +57,7 @@ function ordinal(value) {
 
 function dateKey(value) {
   const text = String(value || "").slice(0, 10);
-  return /^\\d{4}-\\d{2}-\\d{2}$/.test(text) ? text : null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 }
 
 function canonicalTick(weekend) {
