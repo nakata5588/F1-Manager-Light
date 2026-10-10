@@ -90,6 +90,7 @@ export function diagnoseOvertakingEvents(events=[]){
 // completions alone misrepresents position-fight conversion when most traffic
 // is lapped. Uses canonical event IDs/physical pass kinds; read-only.
 export function diagnoseRaceBattleContexts(events=[]){
+  const numeric=value=>value===null||value===undefined||value===""?null:finite(value);
   const attempts=new Map();
   let orphanTerminals=0;
   let repeatedTerminals=0;
@@ -102,14 +103,14 @@ export function diagnoseRaceBattleContexts(events=[]){
       attempts.set(id,{
         kind:String(payload.passKind??"unknown"),
         trackPhase:String(payload.trackPhase??"unknown"),
-        startTimeMs:finite(event?.timeMs),
-        gapM:finite(payload.gapM),
-        closingPotentialMs:finite(payload.closingPotentialMs),
-        tyreGripEdge:finite(payload.tyreGripEdge),
-        tyreConditionEdge:finite(payload.tyreConditionEdge),
-        carEdge:finite(payload.carEdge),
-        driverEdge:finite(payload.driverEdge),
-        strategyEdge:finite(payload.strategyEdge),
+        startTimeMs:numeric(event?.timeMs),
+        gapM:numeric(payload.gapM),
+        closingPotentialMs:numeric(payload.closingPotentialMs),
+        tyreGripEdge:numeric(payload.tyreGripEdge),
+        tyreConditionEdge:numeric(payload.tyreConditionEdge),
+        carEdge:numeric(payload.carEdge),
+        driverEdge:numeric(payload.driverEdge),
+        strategyEdge:numeric(payload.strategyEdge),
         attemptedQuarter:null,
         reachedSideBySide:false,
         reachedAtMs:null,
@@ -135,8 +136,8 @@ export function diagnoseRaceBattleContexts(events=[]){
     }
     if(type==="overtake_side_by_side"){
       item.reachedSideBySide=true;
-      item.reachedAtMs=finite(event?.timeMs);
-      item.sideBySideClosingMs=finite(payload.actualClosingMs);
+      item.reachedAtMs=numeric(event?.timeMs);
+      item.sideBySideClosingMs=numeric(payload.actualClosingMs);
       continue;
     }
     if(!["overtake_completed","overtake_failed","overtake_aborted","contact"].includes(type))continue;
@@ -148,9 +149,9 @@ export function diagnoseRaceBattleContexts(events=[]){
       :type==="overtake_failed"?"failed"
       :type==="overtake_aborted"?"aborted":"contact";
     item.reason=payload.reason==null?null:String(payload.reason);
-    item.finalGapM=finite(payload.finalGapM);
-    item.finalClosingMs=finite(payload.actualClosingMs);
-    item.terminalTimeMs=finite(event?.timeMs);
+    item.finalGapM=numeric(payload.finalGapM);
+    item.finalClosingMs=numeric(payload.actualClosingMs);
+    item.terminalTimeMs=numeric(event?.timeMs);
     item.completedKind=item.outcome==="completed"?String(payload.passKind??"unknown"):null;
   }
   const average=(rows,key)=>{
