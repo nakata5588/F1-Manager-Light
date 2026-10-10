@@ -9,6 +9,7 @@ import {
   RACE_BATTLE_SIDE_BY_SIDE_GAP_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
+  completedBattlePairCoolingDown,
   initialBattleState,
   overtakeAttemptProbability,
   raceBattlePaceMultiplier,
@@ -1370,4 +1371,33 @@ test("RW41 an approach cannot survive its absolute physical time limit",()=>{
   assert.equal(car({cars:result.cars},"C2").battle.phase,"none");
   assert.ok(!result.events.some(event=>event.type==="overtake_approach_extended"));
   assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"approach_timeout");
+});
+
+
+test("RW41 a completed pass blocks an immediate rematch but not other opponents",()=>{
+  let state=runningState({seed:"rw41-pair-cooldown"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:107,distanceAlongLapM:107,speedMs:46,speedKmh:165.6},
+  });
+  state=manualBattle(state,{expiresAtMs:5000});
+  const result=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.ok(result.events.some(event=>event.type==="overtake_completed"));
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"none");
+  assert.equal(defender.battle.phase,"none");
+  assert.equal(attacker.battle.lastCompletedOpponentCarId,"C1");
+  assert.equal(defender.battle.lastCompletedOpponentCarId,"C2");
+  const until=attacker.battle.lastCompletedOpponentCooldownUntilMs;
+  assert.ok(until>=15_000);
+  assert.equal(until,defender.battle.lastCompletedOpponentCooldownUntilMs);
+  const earlyState={...state,simulationTimeMs:until-100,cars:result.cars};
+  assert.equal(completedBattlePairCoolingDown(earlyState,attacker,defender),true);
+  assert.equal(completedBattlePairCoolingDown(earlyState,defender,attacker),true);
+  assert.equal(completedBattlePairCoolingDown(earlyState,attacker,{carId:"another-car"}),false,
+    "cooldown cannot prevent battles against unrelated opponents");
+  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),false,
+    "same rivals may challenge each other after recovery");
 });
