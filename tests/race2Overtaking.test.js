@@ -1502,6 +1502,21 @@ test("RW45 corner braking cannot launch a false battle from free-speed advantage
     "do not treat an unattained free-speed target as current corner closing");
   assert.equal(diagnoseRaceOvertakeGate(braking,car(braking,"C2")).reason,"closing_below_gate");
   assert.equal(car(braking,"C2").speedMs,43,"forecast must never move a car");
+  const lapping=patchCars(braking,{
+    C2:{absoluteDistanceM:1090,distanceAlongLapM:90},
+  });
+  const backmarker=raceOvertakeClosingForecast(lapping,car(lapping,"C2"),car(lapping,"C1"));
+  assert.equal(backmarker.passKind,"lapping");
+  assert.equal(backmarker.freeTargetConfidence,1);
+  assert.ok(backmarker.closingPotentialMs>0.18,
+    "lapping must retain the old free-speed projection, despite corner severity");
+
+  const unlapping=patchCars(braking,{
+    C1:{absoluteDistanceM:1100,distanceAlongLapM:100},
+  });
+  const backToLap=raceOvertakeClosingForecast(unlapping,car(unlapping,"C2"),car(unlapping,"C1"));
+  assert.equal(backToLap.passKind,"unlapping");
+  assert.equal(backToLap.freeTargetConfidence,1);
 });
 
 test("RW45 earned physical closing still allows corner fights and straight racecraft",()=>{
