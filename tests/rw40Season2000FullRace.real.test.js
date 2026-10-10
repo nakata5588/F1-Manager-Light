@@ -185,7 +185,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const behaviour=summarizeRaceBehaviour(fast,{scenario:"2000-Australia-real-58-laps"});
   const battleTypes=new Set([
     "overtake_started","overtake_side_by_side","overtake_completed",
-    "overtake_failed","overtake_aborted","contact",
+    "overtake_failed","overtake_aborted","overtake_approach_extended","contact",
   ]);
   const battleEvents=(fast.events||[]).filter(event=>battleTypes.has(event?.type));
   const attempts=battleEvents.filter(event=>event.type==="overtake_started");
@@ -212,6 +212,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const pairedFailures=terminal.filter(e=>e.type==="overtake_failed")
     .reduce((acc,e)=>{const reason=String(e?.payload?.reason??"unknown");acc[reason]=(acc[reason]||0)+1;return acc;},{});
   const completionIds=new Set(successes.map(e=>String(e?.payload?.attemptId??"")));
+  const extensionEvents=battleEvents.filter(e=>e.type==="overtake_approach_extended");
+  const extendedAttemptIds=new Set(extensionEvents.map(e=>String(e?.payload?.attemptId??"")));
+  const sideBySideIds=new Set(battleEvents
+    .filter(e=>e.type==="overtake_side_by_side")
+    .map(e=>String(e?.payload?.attemptId??"")));
   const measuredMetrics=["driverEdge","carEdge","tyreGripEdge","strategyEdge","tyreConditionEdge","damageEdge"];
   const averagesFor=rows=>Object.fromEntries(measuredMetrics.map(key=>{
     const values=rows.map(e=>Number(e?.payload?.[key])).filter(Number.isFinite);
@@ -241,6 +246,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     aborted:behaviour.overtakes.aborted,
     contactEvents:behaviour.overtakes.contacts,
     sideBySideTransitionsRecorded:battleEvents.filter(e=>e.type==="overtake_side_by_side").length,
+    approachExtensions:extensionEvents.length,
+    attemptsWithApproachExtensions:extendedAttemptIds.size,
+    extendedAttemptsReachingSideBySide:[...extendedAttemptIds].filter(id=>sideBySideIds.has(id)).length,
+    extendedAttemptsCompleted:[...extendedAttemptIds].filter(id=>completionIds.has(id)).length,
     unresolvedAttemptIds:unresolved.length,
     failedReasons:pairedFailures,
     completionPct:attempts.length?Number((successes.length/attempts.length*100).toFixed(2)):null,
