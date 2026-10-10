@@ -227,6 +227,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
         const sameLapProximity=absoluteSeparationM<input.track.lengthM*0.5;
         completedPassContexts.push({
           attemptId:String(event?.payload?.attemptId??""),
+          timeMs:Number(event.timeMs)||0,
           driverId:attacker.driverId,
           teamId:attacker.teamId,
           defenderId:defender.driverId,
@@ -317,6 +318,14 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     [row.driverId,row.defenderId].map(String).sort().join("|")
   );
   const positionalPairCounts=Object.values(positionalPassesByPair);
+  const positionalTimesByPair={};
+  for(const row of approximatePositionPasses){
+    const key=[row.driverId,row.defenderId].map(String).sort().join("|");
+    (positionalTimesByPair[key]??=[]).push(row.timeMs);
+  }
+  const rematchIntervalsMs=Object.values(positionalTimesByPair).flatMap(times=>
+    times.sort((a,b)=>a-b).slice(1).map((time,index)=>time-times[index])
+  );
   const battleAudit={
     scenario:"real 2000 Australian Grand Prix",
     measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
@@ -351,6 +360,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     uniqueSameLapOpponentPairs:positionalPairCounts.length,
     sameLapPairsWithRepeatPasses:positionalPairCounts.filter(value=>value>1).length,
     maximumSameLapPassesBetweenOnePair:Math.max(0,...positionalPairCounts),
+    sameLapRepeatPassesWithin60s:rematchIntervalsMs.filter(ms=>ms<=60000).length,
+    sameLapRepeatPassesWithin120s:rematchIntervalsMs.filter(ms=>ms<=120000).length,
+    minimumSameLapRepeatIntervalS:rematchIntervalsMs.length
+      ?Number((Math.min(...rematchIntervalsMs)/1000).toFixed(2))
+      :null,
     completedPassContextsRecorded:completedPassContexts.length,
     uniqueOpponentPairsWithCompletedPass:uniqueOpponentPairs,
     sameLapPassesByRaceQuarter:countBy(approximatePositionPasses,row=>
