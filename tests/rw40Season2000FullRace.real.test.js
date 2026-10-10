@@ -385,6 +385,32 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   "every position pass must be attributed to its original attempt kind");
   assert.equal(contextFunnel.orphanTerminals,0,
     "every canonical outcome must be paired to an attempt");
+  const positionStarts=attempts.filter(event=>event?.payload?.passKind==="position");
+  const phases=["straight","braking","corner","heavy_corner"];
+  const avg=(rows,key)=>{
+    const values=rows.map(row=>Number(row?.payload?.[key])).filter(Number.isFinite);
+    return values.length?Number((values.reduce((a,b)=>a+b,0)/values.length).toFixed(3)):null;
+  };
+  const byPhase=Object.fromEntries(phases.map(phase=>{
+    const rows=positionStarts.filter(event=>event?.payload?.trackPhase===phase);
+    const ids=new Set(rows.map(e=>String(e?.payload?.attemptId??"")));
+    return [phase,{
+      attempts:rows.length,
+      reachedSideBySide:[...ids].filter(id=>sideBySideIds.has(id)).length,
+      completed:[...ids].filter(id=>completionIds.has(id)).length,
+      averageObservedClosingMs:avg(rows,"observedClosingMs"),
+      averageProjectedClosingMs:avg(rows,"closingPotentialMs"),
+      averageFreeClosingMs:avg(rows,"freeClosingMs"),
+      averageFreeTargetConfidence:avg(rows,"freeTargetConfidence"),
+      startsWithNegativeObservedClosing:rows.filter(e=>Number(e?.payload?.observedClosingMs)<0).length,
+    }];
+  }));
+  console.log("RW45_CORNER_FORECAST_AUDIT="+JSON.stringify({
+    track:input.track.trackId,
+    brakingModel:input.track.speedProfile?.brakingModel??null,
+    positionBattleStarts:positionStarts.length,
+    byPhase,
+  }));
   console.log("RW44_POSITION_BATTLE_FUNNEL="+JSON.stringify(contextFunnel));
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
 
