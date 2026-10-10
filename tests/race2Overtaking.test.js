@@ -1294,3 +1294,80 @@ test("RW40B reaching side-by-side gets a separate physical time budget without g
   assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
     "side-by-side is not the same as a completed pass");
 });
+
+
+function expiringApproachFixture({simulationTimeMs=10_000,expiresAtMs=10_050}={}){
+  const attemptId="rw41:progress-aware:C2:C1";
+  return patchCars({
+    ...runningState({seed:"rw41-progress-aware"}),
+    simulationTimeMs,
+  },{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",
+        side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:48,speedKmh:172.8,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",
+        side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs},
+    },
+  });
+}
+
+test("RW41 approaching physically at the deadline earns a bounded grace window",()=>{
+  const previous=expiringApproachFixture();
+  const proposed=patchCars(previous,{C2:{absoluteDistanceM:90.3,distanceAlongLapM:90.3}});
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"approach");
+  assert.equal(defender.battle.phase,"approach");
+  assert.equal(attacker.absoluteDistanceM,90.3,"the extension may not move the car");
+  assert.ok(attacker.battle.expiresAtMs>10_100);
+  assert.ok(attacker.battle.expiresAtMs<=12_900);
+  assert.equal(attacker.battle.expiresAtMs,defender.battle.expiresAtMs);
+  assert.ok(result.bypassPairs.has("C1|C2"));
+  const extension=result.events.find(event=>event.type==="overtake_approach_extended");
+  assert.ok(extension);
+  assert.equal(extension.payload.physicalClosingMs,3);
+  assert.ok(!result.events.some(event=>event.type==="overtake_failed"));
+
+  const stillClosing={
+    ...previous,
+    simulationTimeMs:10_100,
+    cars:result.cars,
+  };
+  const secondProposed=patchCars(stillClosing,{
+    C2:{absoluteDistanceM:90.6,distanceAlongLapM:90.6},
+  });
+  const second=resolveRaceOvertaking(stillClosing,secondProposed.cars,{stepMs:100});
+  assert.equal(car({cars:second.cars},"C2").battle.phase,"approach");
+  assert.ok(!second.events.some(event=>event.type==="overtake_approach_extended"),
+    "the deadline must not be extended every physics tick");
+});
+
+test("RW41 a stalled approach expires and cannot gain progress-based time",()=>{
+  const previous=expiringApproachFixture();
+  const result=resolveRaceOvertaking(previous,previous.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  assert.equal(attacker.battle.phase,"none");
+  assert.equal(attacker.battle.result,"failed");
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"approach_timeout");
+  assert.ok(!result.events.some(event=>event.type==="overtake_approach_extended"));
+});
+
+test("RW41 an approach cannot survive its absolute physical time limit",()=>{
+  const previous=expiringApproachFixture({
+    simulationTimeMs:18_000,
+    expiresAtMs:18_050,
+  });
+  const proposed=patchCars(previous,{
+    C2:{absoluteDistanceM:90.3,distanceAlongLapM:90.3},
+  });
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  assert.equal(car({cars:result.cars},"C2").battle.phase,"none");
+  assert.ok(!result.events.some(event=>event.type==="overtake_approach_extended"));
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"approach_timeout");
+});
