@@ -236,6 +236,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   ).size;
   const approximatePositionPasses=completedPassContexts.filter(row=>row.sameLapProximity);
   const approximateLappingPasses=completedPassContexts.filter(row=>!row.sameLapProximity);
+  const positionalPassesByPair=countBy(approximatePositionPasses,row=>
+    [row.driverId,row.defenderId].map(String).sort().join("|")
+  );
+  const positionalPairCounts=Object.values(positionalPassesByPair);
   const battleAudit={
     scenario:"real 2000 Australian Grand Prix",
     measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
@@ -262,6 +266,9 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     passesByTeam,passesByDriver,
     sameLapPhysicalPasses:approximatePositionPasses.length,
     lappingOrUnlappingPhysicalPasses:approximateLappingPasses.length,
+    uniqueSameLapOpponentPairs:positionalPairCounts.length,
+    sameLapPairsWithRepeatPasses:positionalPairCounts.filter(value=>value>1).length,
+    maximumSameLapPassesBetweenOnePair:Math.max(0,...positionalPairCounts),
     completedPassContextsRecorded:completedPassContexts.length,
     uniqueOpponentPairsWithCompletedPass:uniqueOpponentPairs,
     sameLapPassesByRaceQuarter:countBy(approximatePositionPasses,row=>
