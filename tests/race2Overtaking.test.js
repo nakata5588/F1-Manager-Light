@@ -1433,3 +1433,35 @@ test("RW41 diagnostic uses the canonical attempt gates without mutating RaceStat
   });
   assert.equal(diagnoseRaceOvertakeGate(inBattle,car(inBattle,"C2")).reason,"already_battling");
 });
+
+
+test("RW42 completed overtake records position, lapping and unlapping without changing physics",()=>{
+  const contexts=[
+    {defenderAbs:100,attackerAbs:107,expected:"position",offset:0},
+    {defenderAbs:100,attackerAbs:1107,expected:"lapping",offset:1},
+    {defenderAbs:1100,attackerAbs:107,expected:"unlapping",offset:-1},
+  ];
+  for(const {defenderAbs,attackerAbs,expected,offset} of contexts){
+    let state=runningState({seed:"rw42-pass-context"});
+    state=patchCars(state,{
+      C1:{
+        absoluteDistanceM:defenderAbs,distanceAlongLapM:defenderAbs%1000,
+        speedMs:40,speedKmh:144,
+        performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+      },
+      C2:{
+        absoluteDistanceM:attackerAbs,distanceAlongLapM:attackerAbs%1000,
+        speedMs:41,speedKmh:147.6,
+        performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+      },
+    });
+    state=manualBattle(state);
+    const result=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    const completed=result.events.find(e=>e.type==="overtake_completed");
+    assert.ok(completed,expected+" must physically clear the defender");
+    assert.equal(completed.payload.passKind,expected);
+    assert.equal(completed.payload.relativeLapOffset,offset);
+    assert.equal(car({cars:result.cars},"C2").absoluteDistanceM,attackerAbs,
+      "pass interpretation must not change the official car position");
+  }
+});
