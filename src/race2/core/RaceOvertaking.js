@@ -237,7 +237,14 @@ export function raceOvertakeClosingForecast(state,attacker,defender){
     clamp(attacker?.effectiveCornerSeverity,0,1),
     clamp(defender?.effectiveCornerSeverity,0,1)
   );
-  const freeTargetConfidence=clamp((0.82-cornerSeverity)/0.62,0,1);
+  // Position fights need the extra credibility gate. A lapping/unlapping
+  // manoeuvre is a materially different situation (often a large real pace
+  // advantage); retain the prior forecast and avoid changing backmarker
+  // interactions as collateral damage.
+  const passKind=racePhysicalPassContext(state,attacker,defender).kind;
+  const freeTargetConfidence=passKind==="position"
+    ?clamp((0.82-cornerSeverity)/0.62,0,1)
+    :1;
   const projectedClosing=hasFreeTelemetry
     ?currentClosing+Math.max(0,freeClosing-currentClosing)*freeTargetConfidence
     :null;
@@ -250,6 +257,7 @@ export function raceOvertakeClosingForecast(state,attacker,defender){
     freeClosingMs:freeClosing,
     freeTargetConfidence,
     cornerSeverity,
+    passKind,
     hasFreeTelemetry,
   };
 }
