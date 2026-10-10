@@ -26,6 +26,10 @@ export const RACE_BATTLE_CONTACT_PROXIMITY_M=2.6;
 export const RACE_BATTLE_DURATION_MS=3500;
 export const RACE_BATTLE_MAX_DURATION_MS=12000;
 export const RACE_BATTLE_EXTENSION_MS=1800;
+// An approach may outlast its initial estimate only while its measured physical
+// gap is shrinking. A fixed absolute limit prevents endless duels in traffic.
+export const RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS=2800;
+export const RACE_BATTLE_APPROACH_ABSOLUTE_MAX_MS=18000;
 export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
@@ -840,6 +844,61 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
           duelBudgetMs,
           duelExpiresAtMs,
+        }));
+        continue;
+      }
+      // Launch estimates are made on free speed before braking/corners change
+      // the actual closing rate. Do not throw away a manoeuvre that is still
+      // *physically* approaching the defender just because its forecast expired.
+      // Only a measurable closing step, a reachable side-by-side gap and a
+      // bounded total approach lifetime can earn a short extension.
+      const distanceToSideBySideM=Math.max(0,approachGapM-RACE_BATTLE_SIDE_BY_SIDE_GAP_M);
+      const predictedMs=actualClosingMs>0
+        ?distanceToSideBySideM/actualClosingMs*1000
+        :Infinity;
+      const startedAtMs=finite(previousBattle?.startedAtMs,nextTime);
+      const absoluteDeadlineMs=startedAtMs+RACE_BATTLE_APPROACH_ABSOLUTE_MAX_MS;
+      const progressGraceEligible=
+        expired&&nextTime<absoluteDeadlineMs&&
+        actualClosingMs>=0.5&&
+        approachGapM<=RACE_OVERTAKE_ATTEMPT_RANGE_M&&
+        predictedMs<=RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS*1.5;
+      if(progressGraceEligible){
+        const graceMs=clamp(
+          predictedMs*1.25+400,
+          900,
+          RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS
+        );
+        const extendedExpiry=Math.min(absoluteDeadlineMs,nextTime+graceMs);
+        const side=Number(previousBattle?.side)||1;
+        attacker=withApproachBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          gapM:approachGapM,
+        });
+        defender=withApproachBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          gapM:approachGapM,
+        });
+        cars=setCar(setCar(cars,attacker),defender);
+        bypassPairs.add(pairKey);
+        events.push(eventDescriptor("overtake_approach_extended",state,attacker,defender,{
+          attemptId,
+          gapM:round(approachGapM,6),
+          physicalClosingMs:actualClosingMs,
+          forecastToSideBySideMs:round(predictedMs,3),
+          newDeadlineMs:round(extendedExpiry,3),
         }));
         continue;
       }
