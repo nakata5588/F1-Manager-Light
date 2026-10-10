@@ -1063,6 +1063,8 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
         attemptId,
         clearanceM:round(clearance,6),
+        actualClosingMs,
+        elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
         fullyClear,
         passKind:physicalPass.kind,
         relativeLapOffset:physicalPass.relativeLapOffset,
@@ -1119,6 +1121,13 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       events.push(eventDescriptor("overtake_failed",state,attacker,defender,{
         attemptId,
         reason:expired?"timeout":"defender_clear",
+        // Diagnostics only: the side-by-side phase previously lost its real
+        // closing speed/clearance on failure, making stalled vs defended
+        // physical moves indistinguishable.
+        finalGapM:round(Math.max(0,-clearance),6),
+        physicalClearanceM:round(clearance,6),
+        actualClosingMs,
+        elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
       }));
       continue;
     }
