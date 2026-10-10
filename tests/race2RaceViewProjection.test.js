@@ -933,3 +933,27 @@ test("RW13B Control Tower model exposes only canonical classification metadata",
   assert.equal(rows[0].pit_state.phase,"pit_box");
   assert.equal(rows[0].pit_count,1);
 });
+
+
+test("RW42 Race View labels lapping, unlapping and position battles from canonical event context",()=>{
+  const context={drivers:[
+    {driver_id:"D1",display_name:"Leader"},
+    {driver_id:"D2",display_name:"Backmarker"},
+  ]};
+  const event=(passKind,type="overtake_completed")=>({
+    type,driverIds:["D1","D2"],payload:{passKind},
+  });
+  const position=presentCanonicalRaceEvent(event("position"),context);
+  const lapping=presentCanonicalRaceEvent(event("lapping"),context);
+  const unlapping=presentCanonicalRaceEvent(event("unlapping"),context);
+  assert.equal(position.label,"Overtake");
+  assert.equal(position.text,"Leader passes Backmarker");
+  assert.equal(lapping.label,"Lapping");
+  assert.equal(lapping.text,"Leader laps Backmarker");
+  assert.equal(unlapping.label,"Unlapping");
+  assert.equal(unlapping.text,"Leader unlaps from Backmarker");
+  assert.equal(presentCanonicalRaceEvent(event("lapping","overtake_started"),context).label,"Lapping");
+  assert.equal(presentCanonicalRaceEvent(event("unlapping","overtake_started"),context).label,"Unlapping");
+  assert.equal(presentCanonicalRaceEvent(event(undefined),context).text,"Leader passes Backmarker",
+    "legacy events without context retain compatible presentation");
+});
