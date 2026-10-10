@@ -604,6 +604,14 @@ export function battleContactProbability(state,attacker,defender,{stepMs=100}={}
   return round(1-Math.pow(1-perSecond,dt),8);
 }
 
+export function completedBattlePairCoolingDown(state,attacker,defender){
+  const now=Math.max(0,finite(state?.simulationTimeMs,0));
+  const recentPair=(a,b)=>
+    String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&
+    finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now;
+  return recentPair(attacker,defender)||recentPair(defender,attacker);
+}
+
 function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
   if(!activeTrackCar(attacker))return null;
   if(attacker?.battle?.phase&&attacker.battle.phase!=="none")return null;
@@ -617,13 +625,9 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
   if(!nearest?.car)return null;
   const defender=nearest.car;
   if(!activeTrackCar(defender))return null;
-  const now=Math.max(0,finite(state?.simulationTimeMs,0));
-  // Both sides retain the last completed opponent across later battles. Stop
-  // the same pair ping-ponging after 0.5s, but allow either car to race others.
-  const recentPair=(a,b)=>
-    String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&
-    finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now;
-  if(recentPair(attacker,defender)||recentPair(defender,attacker))return null;
+  // Completed duels have a pair-specific recovery window; unrelated rivals
+  // may still battle the same car at the next available opportunity.
+  if(completedBattlePairCoolingDown(state,attacker,defender))return null;
   const blocked=overtakeBlockedSectorSet(blockedSectors);
   if(
     carInBlockedOvertakeSector(attacker,blocked)||
