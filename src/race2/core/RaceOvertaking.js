@@ -186,8 +186,7 @@ export function raceBattlePaceMultiplier(state,car){
   return round(clamp(1+ownEdge*0.0022,0.90,1.10),6);
 }
 
-function overtakeClosingPotentialMs(state,attacker,defender){
-  void state;
+export function raceOvertakeClosingForecast(state,attacker,defender){
   const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
   const currentDefender=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
   const currentClosing=currentAttacker-currentDefender;
@@ -228,9 +227,31 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   // a competing maximum when those targets exist can launch overtakes that the
   // actual simulation cannot physically close (RW38 diagnosis).
   // Retain the performance fallback only before valid free-speed telemetry.
-  return hasFreeTelemetry
-    ?Math.max(currentClosing,freeClosing)
+  // RW45: freeTargetSpeed is an achievable *target*, not an instantaneous
+  // closing speed. Through braking/corners, actual differential is a better
+  // indication of whether the attacker can commit to the physical move.
+  // Blend towards observed closing using the severity computed by the
+  // canonical RaceDynamics profile. On straights preserve the existing
+  // free-speed projection and racecraft opportunity.
+  const cornerSeverity=Math.max(
+    clamp(attacker?.effectiveCornerSeverity,0,1),
+    clamp(defender?.effectiveCornerSeverity,0,1)
+  );
+  const freeTargetConfidence=clamp((0.82-cornerSeverity)/0.62,0,1);
+  const projectedClosing=hasFreeTelemetry
+    ?currentClosing+Math.max(0,freeClosing-currentClosing)*freeTargetConfidence
+    :null;
+  const closingPotentialMs=hasFreeTelemetry
+    ?Math.max(currentClosing,projectedClosing)
     :Math.max(currentClosing,performanceClosing);
+  return {
+    closingPotentialMs,
+    observedClosingMs:currentClosing,
+    freeClosingMs:freeClosing,
+    freeTargetConfidence,
+    cornerSeverity,
+    hasFreeTelemetry,
+  };
 }
 
 function battleDurationMs(state,gapM,closingPotentialMs){
@@ -653,8 +674,12 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
     finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)+8
   );
   const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
-  const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
+  const closingForecast=raceOvertakeClosingForecast(state,attacker,defender);
+  const closingPotentialMs=closingForecast.closingPotentialMs;
   probe.closingPotentialMs=round(closingPotentialMs,3);
+  probe.observedClosingMs=round(closingForecast.observedClosingMs,3);
+  probe.freeClosingMs=round(closingForecast.freeClosingMs,3);
+  probe.freeTargetConfidence=round(closingForecast.freeTargetConfidence,3);
 
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
@@ -712,6 +737,7 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
     probability,
     roll,
     closingPotentialMs,
+    closingForecast,
     attemptRangeM:attemptRange,
     trackDifficulty:overtakingDifficulty(state),
     towStrength:finite(towContext?.strength,0),
@@ -1250,6 +1276,9 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       side,
       durationMs,
       closingPotentialMs:round(opportunity.closingPotentialMs,6),
+      observedClosingMs:round(opportunity?.closingForecast?.observedClosingMs,6),
+      freeClosingMs:round(opportunity?.closingForecast?.freeClosingMs,6),
+      freeTargetConfidence:round(opportunity?.closingForecast?.freeTargetConfidence,6),
       attemptRangeM:round(opportunity.attemptRangeM,6),
       trackDifficulty:round(opportunity.trackDifficulty,3),
       attackerDriverScore:matchup.attackerDriverScore,
