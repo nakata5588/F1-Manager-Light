@@ -156,6 +156,9 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       sameDistanceTrafficLimited:0,
       sameDistanceGripAdvantage2Pct:0,
       sameDistanceBadClosing:0,
+      freeAdvantageAndTrafficLimited:0,
+      freeAdvantageAndBadClosing:0,
+      freeAdvantageTrafficLimitedAndBadClosing:0,
       starts:0,
       completedPasses:0,
     }]
@@ -187,9 +190,16 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
         interval.sameDistanceWithin25m++;
         const attackerFree=Number(car.freeTargetSpeedKmh)||0;
         const defenderFree=Number(near.car.freeTargetSpeedKmh)||0;
-        if(attackerFree-defenderFree>=2)interval.sameDistanceFreeAdvantageKmh2++;
-        if(car.traffic?.limited)interval.sameDistanceTrafficLimited++;
-        if(Number(car.speedMs)-Number(near.car.speedMs)<0.2)interval.sameDistanceBadClosing++;
+        const freeAdvantage=attackerFree-defenderFree>=2;
+        const trafficLimited=Boolean(car.traffic?.limited);
+        const poorActualClosing=Number(car.speedMs)-Number(near.car.speedMs)<0.2;
+        if(freeAdvantage)interval.sameDistanceFreeAdvantageKmh2++;
+        if(trafficLimited)interval.sameDistanceTrafficLimited++;
+        if(poorActualClosing)interval.sameDistanceBadClosing++;
+        if(freeAdvantage&&trafficLimited)interval.freeAdvantageAndTrafficLimited++;
+        if(freeAdvantage&&poorActualClosing)interval.freeAdvantageAndBadClosing++;
+        if(freeAdvantage&&trafficLimited&&poorActualClosing)
+          interval.freeAdvantageTrafficLimitedAndBadClosing++;
         const attackGrip=Number(raceResourcePerformance(car).tyreGripMultiplier)||0;
         const defendGrip=Number(raceResourcePerformance(near.car).tyreGripMultiplier)||0;
         if(attackGrip-defendGrip>=0.02)interval.sameDistanceGripAdvantage2Pct++;
@@ -221,6 +231,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
           defenderId:defender.driverId,
           lap:Number(attacker.completedLaps||0)+1,
           sameLapProximity,
+          canonicalPassKind:String(event?.payload?.passKind??"unknown"),
           absoluteSeparationM:Number(absoluteSeparationM.toFixed(3)),
         });
       }
@@ -296,6 +307,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   ).size;
   const approximatePositionPasses=completedPassContexts.filter(row=>row.sameLapProximity);
   const approximateLappingPasses=completedPassContexts.filter(row=>!row.sameLapProximity);
+  const canonicalPassKinds=countBy(successes,event=>event?.payload?.passKind??"unknown");
+  const canonicalStartKinds=countBy(attempts,event=>event?.payload?.passKind??"unknown");
+  const positionPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="position");
+  const lappingPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="lapping");
+  const unlappingPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="unlapping");
   const positionalPassesByPair=countBy(approximatePositionPasses,row=>
     [row.driverId,row.defenderId].map(String).sort().join("|")
   );
@@ -326,6 +342,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     passesByTeam,passesByDriver,
     sameLapPhysicalPasses:approximatePositionPasses.length,
     lappingOrUnlappingPhysicalPasses:approximateLappingPasses.length,
+    canonicalBattleStartsByKind:canonicalStartKinds,
+    canonicalCompletedPassesByKind:canonicalPassKinds,
+    canonicalPositionPassesByRaceQuarter:countBy(positionPasses,row=>quarterOfLap(row.lap)),
+    canonicalLappingPasses:lappingPasses.length,
+    canonicalUnlappingPasses:unlappingPasses.length,
     uniqueSameLapOpponentPairs:positionalPairCounts.length,
     sameLapPairsWithRepeatPasses:positionalPairCounts.filter(value=>value>1).length,
     maximumSameLapPassesBetweenOnePair:Math.max(0,...positionalPairCounts),
@@ -346,6 +367,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(completedPassContexts.length,successes.length,
     "every completed pass should retain its two physical drivers at the event tick");
   assert.equal(approximatePositionPasses.length+approximateLappingPasses.length,successes.length);
+  assert.equal(positionPasses.length+lappingPasses.length+unlappingPasses.length,successes.length,
+    "every completion must have a canonical physical pass kind");
+  assert.equal(positionPasses.length,approximatePositionPasses.length,
+    "canonical pass labels should agree with the legacy physical-distance proxy");
+  assert.equal(lappingPasses.length+unlappingPasses.length,approximateLappingPasses.length);
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
 
   const summary={

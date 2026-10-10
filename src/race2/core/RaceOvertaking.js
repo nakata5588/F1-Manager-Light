@@ -15,6 +15,7 @@ import {
   nearestTrafficAhead,
   raceSlipstreamContext,
   raceTrafficPairKey,
+  racePhysicalPassContext,
 } from "./RaceTraffic.js";
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.85;
@@ -1058,10 +1059,13 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       };
       bypassPairs.add(pairKey);
       cars=setCar(setCar(cars,attacker),defender);
+      const physicalPass=racePhysicalPassContext(state,attacker,defender);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
         attemptId,
         clearanceM:round(clearance,6),
         fullyClear,
+        passKind:physicalPass.kind,
+        relativeLapOffset:physicalPass.relativeLapOffset,
       }));
       continue;
     }
@@ -1226,8 +1230,11 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
     occupied.add(String(attacker?.carId??""));
     occupied.add(String(defender?.carId??""));
     const matchup=raceBattlePerformanceMatchup(previousAttacker,opportunity.defender);
+    const physicalPass=racePhysicalPassContext(state,previousAttacker,opportunity.defender);
     events.push(eventDescriptor("overtake_started",state,attacker,defender,{
       attemptId,
+      passKind:physicalPass.kind,
+      relativeLapOffset:physicalPass.relativeLapOffset,
       gapM:round(opportunity.gapM,6),
       probability:opportunity.probability,
       roll:round(opportunity.roll,8),

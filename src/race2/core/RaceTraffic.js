@@ -78,6 +78,29 @@ function lapDistance(state,car){
   return wrapTrackDistanceM(state?.track,finite(car?.absoluteDistanceM,0));
 }
 
+// One canonical physical interpretation of a road pass. A car can occupy
+// the same metres of track while being one or more race laps apart. Keep the
+// meaning in Race Core so Results and diagnostics never infer it differently.
+export function racePhysicalPassContext(state,attacker,defender){
+  const lengthM=finite(state?.track?.lengthM,null);
+  const attackerM=finite(attacker?.absoluteDistanceM,null);
+  const defenderM=finite(defender?.absoluteDistanceM,null);
+  if(!(lengthM>0)||attackerM==null||defenderM==null){
+    return {kind:"unknown",relativeLapOffset:null};
+  }
+  const relativeDistanceM=attackerM-defenderM;
+  const signedLaps=relativeDistanceM/lengthM;
+  const kind=signedLaps>0.5
+    ?"lapping"
+    :signedLaps< -0.5
+      ?"unlapping"
+      :"position";
+  return {
+    kind,
+    relativeLapOffset:kind==="position"?0:Math.round(signedLaps),
+  };
+}
+
 export function raceTrafficPairKey(a,b){
   const ids=[String(a?.carId??a??""),String(b?.carId??b??"")].sort();
   return ids.join("|");
