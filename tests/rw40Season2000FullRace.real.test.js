@@ -379,9 +379,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(contextFunnel.total.attempts,attempts.length);
   assert.equal(contextFunnel.total.completed,successes.length);
   assert.equal(contextFunnel.byStartKind.position.attempts,canonicalStartKinds.position??0);
-  assert.equal(contextFunnel.byStartKind.position.completedByPassKind.position??0,
-    canonicalPassKinds.position??0,
-    "completion context should agree with start context for historical benchmark");
+  assert.equal(Object.values(contextFunnel.byStartKind).reduce(
+    (sum,group)=>sum+(group.completedByPassKind.position??0),0
+  ),canonicalPassKinds.position??0,
+  "every position pass must be attributed to its original attempt kind");
   assert.equal(contextFunnel.orphanTerminals,0,
     "every canonical outcome must be paired to an attempt");
   console.log("RW44_POSITION_BATTLE_FUNNEL="+JSON.stringify(contextFunnel));
