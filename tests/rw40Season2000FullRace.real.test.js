@@ -17,6 +17,9 @@ import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRun
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
+import { diagnoseRaceOvertakeGate } from "../src/race2/core/RaceOvertaking.js";
+import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
+import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";
 
 async function season2000(){
   const file=new URL("../public/data/seasons/2000/season.json",import.meta.url);
@@ -140,10 +143,58 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   // at the event tick. Passing a lapped car is not a change of race position.
   // The half-lap proximity guard tolerates start/finish line crossings.
   const completedPassContexts=[];
+  const quarterOfLap=lap=>lap<=15?"laps_1_15":lap<=30?"laps_16_30":lap<=45?"laps_31_45":"laps_46_58";
+  const gateAudit=Object.fromEntries(["laps_1_15","laps_16_30","laps_31_45","laps_46_58"].map(name=>
+    [name,{
+      samples:0,activeTrackCarSamples:0,
+      potentialCandidates:0,
+      byGateReason:{},
+      nearestWithin25m:0,
+      sameDistanceWithin25m:0,
+      lappingWithin25m:0,
+      sameDistanceFreeAdvantageKmh2:0,
+      sameDistanceTrafficLimited:0,
+      sameDistanceGripAdvantage2Pct:0,
+      sameDistanceBadClosing:0,
+      starts:0,
+      completedPasses:0,
+    }]
+  ));
   let sampledMaxSpeedKmh=0;
   let priorEventCount=0;
   for(let tick=0;tick<fast.tick;tick++){
     const next=live.step();
+    const leadingLap=Math.min(58,Math.max(0,...next.cars.map(car=>Number(car.completedLaps)||0))+1);
+    const quarter=quarterOfLap(leadingLap);
+    const interval=gateAudit[quarter];
+    // The gate is the same one used by Race Core. Sample at 2s intervals
+    // without changing any car, battle, probability roll or event.
+    if(tick%20===0){
+      interval.samples++;
+      for(const car of next.cars){
+        if(car.dnf||car.status==="dnf"||car.status==="finished"||
+          String(car.pitState?.status??"track")!=="track")continue;
+        interval.activeTrackCarSamples++;
+        const gate=diagnoseRaceOvertakeGate(next,car);
+        interval.byGateReason[gate.reason]=(interval.byGateReason[gate.reason]||0)+1;
+        if(gate.eligible)interval.potentialCandidates++;
+        const near=nearestTrafficAhead(next,car,{ignoreBattleOpponent:false});
+        if(!near?.car||Number(near.gapM)>25)continue;
+        interval.nearestWithin25m++;
+        const directDistanceGap=Math.abs(Number(car.absoluteDistanceM)-Number(near.car.absoluteDistanceM));
+        const sameDistance=directDistanceGap<Number(input.track.lengthM)*0.5;
+        if(!sameDistance){interval.lappingWithin25m++;continue;}
+        interval.sameDistanceWithin25m++;
+        const attackerFree=Number(car.freeTargetSpeedKmh)||0;
+        const defenderFree=Number(near.car.freeTargetSpeedKmh)||0;
+        if(attackerFree-defenderFree>=2)interval.sameDistanceFreeAdvantageKmh2++;
+        if(car.traffic?.limited)interval.sameDistanceTrafficLimited++;
+        if(Number(car.speedMs)-Number(near.car.speedMs)<0.2)interval.sameDistanceBadClosing++;
+        const attackGrip=Number(raceResourcePerformance(car).tyreGripMultiplier)||0;
+        const defendGrip=Number(raceResourcePerformance(near.car).tyreGripMultiplier)||0;
+        if(attackGrip-defendGrip>=0.02)interval.sameDistanceGripAdvantage2Pct++;
+      }
+    }
     // Periodic canonical speed samples; read-only and deliberately lightweight.
     if(tick%25===0){
       for(const car of next.cars)sampledMaxSpeedKmh=Math.max(
@@ -153,6 +204,8 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     if(next.events.length>priorEventCount){
       const newEvents=next.events.slice(priorEventCount);
       for(const event of newEvents){
+        if(event.type==="overtake_started")interval.starts++;
+        if(event.type==="overtake_completed")interval.completedPasses++;
         if(event.type!=="overtake_completed")continue;
         const attacker=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[0]));
         const defender=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[1]));
@@ -175,6 +228,13 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     }
   }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
+  console.log("RW41_MID_RACE_GATE_DIAGNOSTIC="+JSON.stringify({
+    scenario:"real 2000 Australia, same engine and seed, 2s samples of every on-track car",
+    caveats:["pre-attempt reasons are prioritized by canonical gate order",
+      "nearest within25m and same-distance classifications are physical proximity proxies",
+      "probability_roll samples include a deterministic random gate, not guaranteed attempts"],
+    quarters:gateAudit,
+  }));
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
   assert.equal(archived.length,22,"all 22 starting drivers need an official result (including DNF)");
