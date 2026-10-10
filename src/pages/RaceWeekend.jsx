@@ -93,10 +93,21 @@ function formatRaceTime(ms){
     :`${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
 }
 function formatInterval(ms,{leader=false}={}){
-  const n=Number(ms);
   if(leader)return "LEADER";
+  if(ms==null||ms==="")return "—";
+  const n=Number(ms);
   if(!Number.isFinite(n)||n<0)return "—";
   return "+"+(n/1000).toFixed(3);
+}
+function formatOfficialRaceGap(row){
+  const laps=Number(row?.laps_behind);
+  if(Number.isFinite(laps)&&laps>0)return `+${laps} Lap${laps===1?"":"s"}`;
+  return formatInterval(row?.gap_to_winner_ms);
+}
+function formatLiveRaceLeaderGap(row){
+  const laps=Number(row?.laps_behind);
+  if(Number.isFinite(laps)&&laps>0)return `+${laps} Lap${laps===1?"":"s"}`;
+  return formatInterval(row?.gap_to_leader_ms);
 }
 function positionDelta(value){
   const n=Number(value)||0;
@@ -2587,7 +2598,7 @@ export default function RaceWeekend(){
                         <td className={"px-2 py-1.5 text-center font-semibold "+(gridGain>0?"text-emerald-400":gridGain<0?"text-rose-400":"text-slate-500")}>{positionDelta(gridGain)}</td>
                         <td className={"px-2 py-1.5 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-500")}>{positionDelta(lapGain)}</td>
                         <td className="px-2 py-1.5 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatLiveRaceLeaderGap(row)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
                         <td className="px-2 py-1.5 text-center"><TyreCompoundBadge compound={compound} compact/></td>
                         <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
@@ -2598,7 +2609,7 @@ export default function RaceWeekend(){
                       {liveTimingMode==="timing"&&<>
                         <td className={"px-2 py-2 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-600")}>{positionDelta(lapGain)}</td>
                         <td className="px-2 py-1.5 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatLiveRaceLeaderGap(row)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s1Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_1_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s2Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_2_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s3Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_3_ms)}</td>
@@ -2817,9 +2828,9 @@ export default function RaceWeekend(){
                   const isWinner=pos===1;
                   const gap=isWinner
                     ?formatRaceTime(row?.total_time_ms)
-                    :Number.isFinite(Number(row?.gap_to_winner_ms))
-                      ?formatInterval(row.gap_to_winner_ms)
-                      :(row?.retirement_reason||row?.status||"—");
+                    :row?.retired
+                      ?(row?.retirement_reason||row?.status||"DNF")
+                      :formatOfficialRaceGap(row);
                   return <div key={row.driver_id||pos} className={"relative rounded-xl border p-4 text-center "+(isWinner?"md:min-h-[205px] border-amber-400/40 bg-amber-400/[0.08]":"md:min-h-[175px] border-white/10 bg-[#171d27]")}>
                     <div className={"mx-auto mb-2 flex items-center justify-center rounded-full font-black "+(isWinner?"h-9 w-9 bg-amber-300 text-slate-950":"h-8 w-8 bg-white/10 text-slate-100")}>P{pos}</div>
                     <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size={isWinner?"h-20 w-20":"h-16 w-16"} className="mx-auto ring-white/15"/>
@@ -3024,9 +3035,7 @@ export default function RaceWeekend(){
                       ?formatRaceTime(row?.total_time_ms)
                       :row?.retired
                         ?(row?.retirement_reason||status)+(row?.incident_lap?" · L"+row.incident_lap:"")
-                        :Number.isFinite(Number(row?.gap_to_winner_ms))
-                          ?formatInterval(row.gap_to_winner_ms)
-                          :"—";
+                        :formatOfficialRaceGap(row);
                     const standing=driverStandingById.get(did);
                     const teamStanding=constructorStandingById.get(tid);
                     const resultRowTone=row?.retired||String(status).toUpperCase()==="DNF"

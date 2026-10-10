@@ -77,8 +77,11 @@ function teamVisualPalette(teamBrands,teamIdValue,year,name=""){
   };
 }
 
-function formatGap(ms,{leader=false}={}){
+function formatGap(ms,{leader=false,lapsBehind=0}={}){
   if(leader)return "LEAD";
+  const laps=Number(lapsBehind);
+  if(Number.isFinite(laps)&&laps>0)return `+${laps} LAP${laps===1?"":"S"}`;
+  if(ms==null||ms==="")return "—";
   const n=Number(ms);
   return Number.isFinite(n)&&n>=0?`+${(n/1000).toFixed(n>=10000?1:3)}`:"—";
 }
@@ -299,7 +302,7 @@ const ControlTower=React.memo(function ControlTower({
         const delta=positionDelta(car.position_change_last_lap);
         const pitActive=Boolean(car?.pit_state?.active);
         const battleNow=battleActive(car?.battle_context);
-        const status=car.retired?"DNF":pitActive?"PIT":formatGap(car.gap_to_leader_ms,{leader:index===0});
+        const status=car.retired?"DNF":pitActive?"PIT":formatGap(car.gap_to_leader_ms,{leader:index===0,lapsBehind:car.laps_behind});
         return <button
           type="button"
           key={String(car.car_id||car.driver_id)}

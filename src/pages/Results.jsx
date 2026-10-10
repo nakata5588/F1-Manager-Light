@@ -57,7 +57,12 @@ function formatLapTime(ms) {
   return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
 }
 
-function formatGap(ms) {
+function formatGap(ms, lapsBehind = 0) {
+  if (Number.isFinite(Number(lapsBehind)) && Number(lapsBehind) > 0) {
+    const laps = Number(lapsBehind);
+    return `+${laps} Lap${laps === 1 ? "" : "s"}`;
+  }
+  if (ms == null || ms === "") return "—";
   const n = Number(ms);
   if (!Number.isFinite(n) || n < 0) return "—";
   if (n === 0) return "—";
@@ -71,16 +76,31 @@ function rowsWithCalculatedGaps(rows) {
 
   const winner = sorted.find((row) => Number(row?.position) === 1);
   const winnerTime = numberOrNull(winner?.total_time_ms);
+  const winnerLaps = numberOrNull(winner?.laps_completed);
 
   return sorted.map((row, index) => {
     const totalTime = numberOrNull(row?.total_time_ms);
-    const previousTime = index > 0 ? numberOrNull(sorted[index - 1]?.total_time_ms) : null;
-    const calculatedToWinner =
-      totalTime != null && winnerTime != null && totalTime >= winnerTime
+    const completedLaps = numberOrNull(row?.laps_completed);
+    const previous = index > 0 ? sorted[index - 1] : null;
+    const previousTime = numberOrNull(previous?.total_time_ms);
+    const previousLaps = numberOrNull(previous?.laps_completed);
+    // Prefer the official gap. Older and historical records can fall back to
+    // their archived completed-lap facts; never convert a lap gap into seconds.
+    const lapsBehind = numberOrNull(row?.laps_behind) ??
+      (winnerLaps != null && completedLaps != null
+        ? Math.max(0, winnerLaps - completedLaps)
+        : 0);
+    const intervalLaps = previousLaps != null && completedLaps != null
+      ? Math.max(0, previousLaps - completedLaps)
+      : 0;
+    const calculatedToWinner = lapsBehind > 0
+      ? null
+      : totalTime != null && winnerTime != null && totalTime >= winnerTime
         ? totalTime - winnerTime
         : numberOrNull(row?.gap_to_winner_ms);
-    const calculatedGap =
-      index === 0
+    const calculatedGap = intervalLaps > 0
+      ? null
+      : index === 0
         ? 0
         : totalTime != null && previousTime != null && totalTime >= previousTime
           ? totalTime - previousTime
@@ -88,6 +108,8 @@ function rowsWithCalculatedGaps(rows) {
 
     return {
       ...row,
+      __lapsBehind: lapsBehind,
+      __intervalLaps: intervalLaps,
       __toWinnerMs: calculatedToWinner,
       __gapMs: calculatedGap,
     };
@@ -723,8 +745,8 @@ export default function ResultsPage() {
                         <td className="px-3 py-2 text-right">{row.laps_completed ?? row.race_laps ?? "—"}</td>
                         <td className="px-3 py-2 text-right">{stops}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatRaceTime(row.total_time_ms)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__toWinnerMs)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__gapMs)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__toWinnerMs, retired ? 0 : row.__lapsBehind)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__gapMs, retired ? 0 : row.__intervalLaps)}</td>
                         <td className={`px-3 py-2 text-right tabular-nums ${!selected?.historical && row.fastest_lap ? "font-semibold text-purple-300" : ""}`}>
                           {selected?.historical ? "—" : <>{formatLapTime(row.best_lap_ms)}{row.fastest_lap ? " FL" : ""}</>}
                         </td>
