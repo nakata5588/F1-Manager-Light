@@ -15,6 +15,7 @@ import {
   overtakeAttemptProbability,
   raceBattlePaceMultiplier,
   raceBattlePerformanceMatchup,
+  raceOvertakeClosingForecast,
   raceOvertakeOpportunityFactors,
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
@@ -1471,4 +1472,54 @@ test("RW42 completed overtake records position, lapping and unlapping without ch
     assert.equal(car({cars:result.cars},"C2").absoluteDistanceM,attackerAbs,
       "pass interpretation must not change the official car position");
   }
+});
+
+
+test("RW45 corner braking cannot launch a false battle from free-speed advantage alone",()=>{
+  let state=runningState({seed:"rw45-corner-forecast",overtakingDifficulty:50});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,
+      effectiveCornerSeverity:0},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,
+      speedMs:43,speedKmh:154.8,freeTargetSpeedKmh:200,
+      effectiveCornerSeverity:0},
+  });
+  const straight=raceOvertakeClosingForecast(state,car(state,"C2"),car(state,"C1"));
+  assert.equal(straight.freeTargetConfidence,1);
+  assert.ok(straight.observedClosingMs<0);
+  assert.ok(straight.freeClosingMs>0);
+  assert.ok(Math.abs(straight.closingPotentialMs-straight.freeClosingMs)<1e-8);
+  assert.notEqual(diagnoseRaceOvertakeGate(state,car(state,"C2")).reason,"closing_below_gate");
+
+  const braking=patchCars(state,{
+    C1:{effectiveCornerSeverity:0.72},
+    C2:{effectiveCornerSeverity:0.72},
+  });
+  const corner=raceOvertakeClosingForecast(braking,car(braking,"C2"),car(braking,"C1"));
+  assert.ok(corner.freeTargetConfidence<0.2);
+  assert.ok(corner.closingPotentialMs<0.18,
+    "do not treat an unattained free-speed target as current corner closing");
+  assert.equal(diagnoseRaceOvertakeGate(braking,car(braking,"C2")).reason,"closing_below_gate");
+  assert.equal(car(braking,"C2").speedMs,43,"forecast must never move a car");
+});
+
+test("RW45 earned physical closing still allows corner fights and straight racecraft",()=>{
+  let state=runningState({seed:"rw45-physical-closing"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,
+      speedMs:43,speedKmh:154.8,freeTargetSpeedKmh:180,effectiveCornerSeverity:0.72},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,
+      speedMs:46,speedKmh:165.6,freeTargetSpeedKmh:180,effectiveCornerSeverity:0.72},
+  });
+  const forecast=raceOvertakeClosingForecast(state,car(state,"C2"),car(state,"C1"));
+  assert.ok(forecast.observedClosingMs>0);
+  assert.ok(forecast.closingPotentialMs>=forecast.observedClosingMs);
+  assert.notEqual(diagnoseRaceOvertakeGate(state,car(state,"C2")).reason,"closing_below_gate");
+  const straight=patchCars(state,{
+    C1:{effectiveCornerSeverity:0},
+    C2:{effectiveCornerSeverity:0},
+  });
+  const free=raceOvertakeClosingForecast(straight,car(straight,"C2"),car(straight,"C1"));
+  assert.ok(free.closingPotentialMs>=forecast.closingPotentialMs);
 });
