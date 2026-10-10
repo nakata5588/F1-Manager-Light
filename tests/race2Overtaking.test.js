@@ -9,6 +9,7 @@ import {
   RACE_BATTLE_SIDE_BY_SIDE_GAP_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
+  diagnoseRaceOvertakeGate,
   completedBattlePairCoolingDown,
   initialBattleState,
   overtakeAttemptProbability,
@@ -1400,4 +1401,35 @@ test("RW41 a completed pass blocks an immediate rematch but not other opponents"
     "cooldown cannot prevent battles against unrelated opponents");
   assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),false,
     "same rivals may challenge each other after recovery");
+});
+
+
+test("RW41 diagnostic uses the canonical attempt gates without mutating RaceState",()=>{
+  let state=runningState({seed:"rw41-gate-audit"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:120,distanceAlongLapM:120,speedMs:50,speedKmh:180},
+    C2:{absoluteDistanceM:110,distanceAlongLapM:110,speedMs:51,speedKmh:183.6},
+  });
+  const before=structuredClone(state);
+  const normal=diagnoseRaceOvertakeGate(state,car(state,"C2"));
+  assert.equal(normal.defenderCarId,"C1");
+  assert.ok(Math.abs(normal.gapM-10)<1e-9);
+  assert.ok(typeof normal.reason==="string");
+  assert.deepEqual(state,before);
+  assert.deepEqual(diagnoseRaceOvertakeGate(state,car(state,"C2")),normal,
+    "diagnosis must not consume a random roll or alter the live race");
+
+  const cooling=patchCars(state,{
+    C2:{battle:{...initialBattleState(),cooldownUntilMs:state.simulationTimeMs+1000}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(cooling,car(cooling,"C2")).reason,"attacker_cooldown");
+  const pair=patchCars(state,{
+    C2:{battle:{...initialBattleState(),
+      lastCompletedOpponentCarId:"C1",lastCompletedOpponentCooldownUntilMs:1000}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(pair,car(pair,"C2")).reason,"recent_pair_cooldown");
+  const inBattle=patchCars(state,{
+    C2:{battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker"}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(inBattle,car(inBattle,"C2")).reason,"already_battling");
 });
