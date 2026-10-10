@@ -406,3 +406,46 @@ test("RW42 canonical pass context distinguishes race-position pass from lapping 
     kind:"unknown",relativeLapOffset:null,
   },"invalid geometry must not manufacture a position pass");
 });
+
+
+test("RW43 faster position rival can physically close the soft gap without invented speed",()=>{
+  let state=runningState({cars:2});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+      freeTargetSpeedKmh:185},
+    C2:{absoluteDistanceM:91.5,distanceAlongLapM:91.5,speedMs:45,speedKmh:162,
+      freeTargetSpeedKmh:210},
+  });
+  const faster=raceTrafficContext(state,car(state,"C2"));
+  assert.equal(faster.gapM,8.5);
+  assert.ok(faster.desiredGapM>faster.gapM);
+  assert.ok(faster.speedCeilingMs>40&&faster.speedCeilingMs<40.8,
+    "advantage permits only restrained physical closing, no top-speed boost");
+
+  const equal=patchCars(state,{
+    C2:{freeTargetSpeedKmh:185},
+  });
+  assert.equal(raceTrafficContext(equal,car(equal,"C2")).speedCeilingMs,40);
+
+  const lapping=patchCars(state,{
+    C2:{absoluteDistanceM:1091.5,distanceAlongLapM:91.5},
+  });
+  assert.equal(raceTrafficContext(lapping,car(lapping,"C2")).speedCeilingMs,40,
+    "lapping backmarkers retain their historical traffic handling");
+
+  const unlapping=patchCars(state,{
+    C1:{absoluteDistanceM:1100,distanceAlongLapM:100},
+  });
+  assert.equal(raceTrafficContext(unlapping,car(unlapping,"C2")).speedCeilingMs,40,
+    "unlapping remains outside the competitive position-battle allowance");
+
+  const caution={...state,raceControlState:{...state.raceControlState,mode:"VSC"}};
+  assert.equal(raceTrafficContext(caution,car(caution,"C2")).speedCeilingMs,40,
+    "neutralised racing must not get a pace-advantage closing allowance");
+
+  const hard=patchCars(state,{
+    C2:{absoluteDistanceM:94,distanceAlongLapM:94},
+  });
+  assert.ok(raceTrafficContext(hard,car(hard,"C2")).speedCeilingMs<=40,
+    "the hard longitudinal gap can never be bypassed by this allowance");
+});
