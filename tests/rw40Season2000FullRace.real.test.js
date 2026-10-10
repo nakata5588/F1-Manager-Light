@@ -18,6 +18,7 @@ import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/O
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 import { diagnoseRaceOvertakeGate } from "../src/race2/core/RaceOvertaking.js";
+import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
 import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";
 
@@ -372,6 +373,18 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(positionPasses.length,approximatePositionPasses.length,
     "canonical pass labels should agree with the legacy physical-distance proxy");
   assert.equal(lappingPasses.length+unlappingPasses.length,approximateLappingPasses.length);
+  // One-to-one attempt IDs, not aggregate completion counts, identify the
+  // real bottleneck in competitive passes vs backmarker traffic.
+  const contextFunnel=diagnoseRaceBattleContexts(battleEvents);
+  assert.equal(contextFunnel.total.attempts,attempts.length);
+  assert.equal(contextFunnel.total.completed,successes.length);
+  assert.equal(contextFunnel.byStartKind.position.attempts,canonicalStartKinds.position??0);
+  assert.equal(contextFunnel.byStartKind.position.completedByPassKind.position??0,
+    canonicalPassKinds.position??0,
+    "completion context should agree with start context for historical benchmark");
+  assert.equal(contextFunnel.orphanTerminals,0,
+    "every canonical outcome must be paired to an attempt");
+  console.log("RW44_POSITION_BATTLE_FUNNEL="+JSON.stringify(contextFunnel));
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
 
   const summary={
