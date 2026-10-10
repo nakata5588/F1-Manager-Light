@@ -26,6 +26,13 @@ export const RACE_BATTLE_CONTACT_PROXIMITY_M=2.6;
 export const RACE_BATTLE_DURATION_MS=3500;
 export const RACE_BATTLE_MAX_DURATION_MS=12000;
 export const RACE_BATTLE_EXTENSION_MS=1800;
+// An approach may outlast its initial estimate only while its measured physical
+// gap is shrinking. A fixed absolute limit prevents endless duels in traffic.
+export const RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS=2800;
+export const RACE_BATTLE_APPROACH_ABSOLUTE_MAX_MS=18000;
+// A completed pass must not cause an immediate reverse duel with the same
+// opponent. The restriction is pair-specific, not a global battle lockout.
+export const RACE_BATTLE_COMPLETED_PAIR_COOLDOWN_MS=15000;
 export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
@@ -286,6 +293,8 @@ function clearBattle(car,{result=null,cooldownUntilMs=null}={}){
       contactRiskPct:null,
       result:result??previous?.result??null,
       cooldownUntilMs:cooldownUntilMs??finite(previous?.cooldownUntilMs,0),
+      lastCompletedOpponentCarId:previous?.lastCompletedOpponentCarId??null,
+      lastCompletedOpponentCooldownUntilMs:finite(previous?.lastCompletedOpponentCooldownUntilMs,0),
     },
   };
 }
@@ -332,6 +341,7 @@ function withApproachBattle(car,{
     ...car,
     lateralOffsetM:Number((direction*RACE_BATTLE_APPROACH_LATERAL_OFFSET_M*laneShare).toFixed(3)),
     battle:{
+      ...(car?.battle||{}),
       phase:"approach",
       opponentCarId,
       role,
@@ -361,6 +371,7 @@ function withBattle(car,{
     ...car,
     lateralOffsetM:Number((side*RACE_BATTLE_LATERAL_OFFSET_M).toFixed(3)),
     battle:{
+      ...(car?.battle||{}),
       phase:"side_by_side",
       opponentCarId,
       role,
@@ -593,6 +604,14 @@ export function battleContactProbability(state,attacker,defender,{stepMs=100}={}
   return round(1-Math.pow(1-perSecond,dt),8);
 }
 
+export function completedBattlePairCoolingDown(state,attacker,defender){
+  const now=Math.max(0,finite(state?.simulationTimeMs,0));
+  const recentPair=(a,b)=>
+    String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&
+    finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now;
+  return recentPair(attacker,defender)||recentPair(defender,attacker);
+}
+
 function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
   if(!activeTrackCar(attacker))return null;
   if(attacker?.battle?.phase&&attacker.battle.phase!=="none")return null;
@@ -606,6 +625,9 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
   if(!nearest?.car)return null;
   const defender=nearest.car;
   if(!activeTrackCar(defender))return null;
+  // Completed duels have a pair-specific recovery window; unrelated rivals
+  // may still battle the same car at the next available opportunity.
+  if(completedBattlePairCoolingDown(state,attacker,defender))return null;
   const blocked=overtakeBlockedSectorSet(blockedSectors);
   if(
     carInBlockedOvertakeSector(attacker,blocked)||
@@ -843,6 +865,61 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
         }));
         continue;
       }
+      // Launch estimates are made on free speed before braking/corners change
+      // the actual closing rate. Do not throw away a manoeuvre that is still
+      // *physically* approaching the defender just because its forecast expired.
+      // Only a measurable closing step, a reachable side-by-side gap and a
+      // bounded total approach lifetime can earn a short extension.
+      const distanceToSideBySideM=Math.max(0,approachGapM-RACE_BATTLE_SIDE_BY_SIDE_GAP_M);
+      const predictedMs=actualClosingMs>0
+        ?distanceToSideBySideM/actualClosingMs*1000
+        :Infinity;
+      const startedAtMs=finite(previousBattle?.startedAtMs,nextTime);
+      const absoluteDeadlineMs=startedAtMs+RACE_BATTLE_APPROACH_ABSOLUTE_MAX_MS;
+      const progressGraceEligible=
+        expired&&nextTime<absoluteDeadlineMs&&
+        actualClosingMs>=0.5&&
+        approachGapM<=RACE_OVERTAKE_ATTEMPT_RANGE_M&&
+        predictedMs<=RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS*1.5;
+      if(progressGraceEligible){
+        const graceMs=clamp(
+          predictedMs*1.25+400,
+          900,
+          RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS
+        );
+        const extendedExpiry=Math.min(absoluteDeadlineMs,nextTime+graceMs);
+        const side=Number(previousBattle?.side)||1;
+        attacker=withApproachBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          gapM:approachGapM,
+        });
+        defender=withApproachBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          gapM:approachGapM,
+        });
+        cars=setCar(setCar(cars,attacker),defender);
+        bypassPairs.add(pairKey);
+        events.push(eventDescriptor("overtake_approach_extended",state,attacker,defender,{
+          attemptId,
+          gapM:round(approachGapM,6),
+          physicalClosingMs:actualClosingMs,
+          forecastToSideBySideMs:round(predictedMs,3),
+          newDeadlineMs:round(extendedExpiry,3),
+        }));
+        continue;
+      }
       if(expired||approachGapM>RACE_OVERTAKE_ATTEMPT_RANGE_M*1.35){
         attacker=clearBattle(attacker,{result:"failed",cooldownUntilMs});
         defender=clearBattle(defender,{result:"defended",cooldownUntilMs});
@@ -942,6 +1019,23 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       // pass is physically decisive, exclude the pair for the remainder of
       // the current step so stale ordering cannot pull the attacker backwards.
       // The next canonical step observes the new physical road order normally.
+      const pairCooldownUntilMs=nextTime+RACE_BATTLE_COMPLETED_PAIR_COOLDOWN_MS;
+      attacker={
+        ...attacker,
+        battle:{
+          ...(attacker?.battle||{}),
+          lastCompletedOpponentCarId:String(defender?.carId??""),
+          lastCompletedOpponentCooldownUntilMs:pairCooldownUntilMs,
+        },
+      };
+      defender={
+        ...defender,
+        battle:{
+          ...(defender?.battle||{}),
+          lastCompletedOpponentCarId:String(attacker?.carId??""),
+          lastCompletedOpponentCooldownUntilMs:pairCooldownUntilMs,
+        },
+      };
       bypassPairs.add(pairKey);
       cars=setCar(setCar(cars,attacker),defender);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
