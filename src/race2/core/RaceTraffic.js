@@ -263,10 +263,36 @@ export function raceTrafficContext(
     // the car ahead. Between desired and hard gap, match the leader rather
     // than braking below its speed; this lets the overtake layer take over
     // when the follower has genuine free-pace / strategy advantage.
+    // RW43: if a same-position follower genuinely has faster *free* pace,
+    // allow a fraction of that earned speed advantage inside the soft
+    // following gap. This brings it progressively towards the hard gap where
+    // the canonical overtake gate can commit a physical battle. No speed is
+    // manufactured: RaceSimulation still caps this ceiling by the car's free
+    // target, and enforceRaceTrafficSpacing retains the 6m hard limit.
+    // Lapping, unlapping, active battles and caution modes keep their old rule.
+    const attackerFree=finite(car?.freeTargetSpeedKmh,null);
+    const defenderFree=finite(ahead?.freeTargetSpeedKmh,null);
+    const positionFight=racePhysicalPassContext(state,car,ahead).kind==="position";
+    const green=String(state?.raceControlState?.mode??"GREEN").toUpperCase()==="GREEN";
+    const available=positionFight&&green&&
+      String(car?.battle?.phase??"none")==="none"&&
+      String(ahead?.battle?.phase??"none")==="none"&&
+      attackerFree!=null&&defenderFree!=null;
+    const genuineAdvantageKmh=available
+      ?Math.max(0,attackerFree-defenderFree)
+      :0;
+    const closingRoom=clamp(
+      (gapM-RACE_TRAFFIC_HARD_GAP_M)/
+        Math.max(1,desiredGapM-RACE_TRAFFIC_HARD_GAP_M),
+      0,1
+    );
+    const earnedClosingMs=genuineAdvantageKmh>=2
+      ?Math.min(0.8,genuineAdvantageKmh/3.6*0.45)*closingRoom
+      :0;
     const closingAllowance=gapError>=0
       ?gapError/0.9
       :gapM>RACE_TRAFFIC_HARD_GAP_M
-        ?0
+        ?earnedClosingMs
         :gapError/0.35;
     speedCeilingMs=Math.max(0,aheadSpeedMs+closingAllowance);
   }
