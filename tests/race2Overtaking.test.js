@@ -837,7 +837,14 @@ test("RW8.6 failed battle yields laterally until the hard gap is physically rest
   assert.equal(car(failed,"C2").battle.phase,"yielding");
   assert.equal(car(failed,"C2").battle.result,"failed");
   assert.notEqual(car(failed,"C2").lateralOffsetM,0);
-  assert.ok(failed.events.some((event)=>event.type==="overtake_failed"));
+  const failedEvent=failed.events.find((event)=>event.type==="overtake_failed");
+  assert.ok(failedEvent);
+  assert.equal(failedEvent.payload.reason,"timeout");
+  assert.ok(Number.isFinite(failedEvent.payload.actualClosingMs));
+  assert.ok(Number.isFinite(failedEvent.payload.physicalClearanceM));
+  assert.ok(Number.isFinite(failedEvent.payload.finalGapM));
+  assert.ok(Number.isFinite(failedEvent.payload.elapsedMs));
+  assert.ok(failedEvent.payload.finalGapM>=0);
 
   let recovered=failed;
   for(let index=0;index<30&&car(recovered,"C2").battle.phase!=="none";index+=1){
