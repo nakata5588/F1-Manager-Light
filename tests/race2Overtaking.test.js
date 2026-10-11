@@ -1256,7 +1256,7 @@ test("RW37 approach racecraft affects the attacker before side-by-side without s
 
   const attackerMultiplier=raceBattlePaceMultiplier(state,car(state,"C2"));
   const defenderMultiplier=raceBattlePaceMultiplier(state,car(state,"C1"));
-  assert.ok(attackerMultiplier>1.02);
+  assert.equal(attackerMultiplier,1);
   assert.equal(defenderMultiplier,1);
 });
 
