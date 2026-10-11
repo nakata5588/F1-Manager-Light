@@ -311,7 +311,7 @@ test("RW31 driver attributes keep a clear 65/35 advantage over equivalent car in
   assert.ok(driverMatch.edge<carMatch.edge*2.05);
 });
 
-test("RW30 racecraft can create a battle window even when free-speed telemetry is equal",()=>{
+test("RW49 equal free-speed telemetry cannot launch a racecraft-only position pass",()=>{
   let strong=runningState();
   strong=patchCars(strong,{
     C1:{
@@ -338,7 +338,7 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
     const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
     started=resolved.events.some((event)=>event.type==="overtake_started");
   }
-  assert.equal(started,true);
+  assert.equal(started,false);
 
   const neutral=patchCars(strong,{
     C2:{
@@ -386,8 +386,8 @@ test("RW35 local yellow blocks only battles in the affected sector",()=>{
   }
 
   const clearSector=patchCars(state,{
-    C1:{sector:2,absoluteDistanceM:430,distanceAlongLapM:430},
-    C2:{sector:2,absoluteDistanceM:421,distanceAlongLapM:421},
+    C1:{sector:2,absoluteDistanceM:430,distanceAlongLapM:430,freeTargetSpeedKmh:180},
+    C2:{sector:2,absoluteDistanceM:421,distanceAlongLapM:421,freeTargetSpeedKmh:184},
   });
   let started=false;
   for(let bucket=0;bucket<80&&!started;bucket+=1){
