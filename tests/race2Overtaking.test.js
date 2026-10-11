@@ -578,40 +578,17 @@ test("RW28 an active tow materially increases the chance of converting approach 
   assert.ok(withTow>withoutTow+0.10);
 });
 
-test("RW25 driver and car strength materially bias an active side-by-side battle",()=>{
+test("RW49 racecraft affects opportunity choice but never manufactures battle speed",()=>{
   let state=runningState();
   state=patchCars(state,{
-    C1:{
-      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
-      performance:{
-        car:{race:60,power:60,chassis:62},
-        driver:{raceScore:62,overtaking:50,defending:58,mistakePropensity:20,aggression:40},
-      },
-    },
-    C2:{
-      absoluteDistanceM:99,distanceAlongLapM:99,speedMs:45,speedKmh:162,
-      performance:{
-        car:{race:94,power:96,chassis:92},
-        driver:{raceScore:95,overtaking:97,defending:88,mistakePropensity:15,aggression:70},
-      },
-    },
+    C1:{performance:{car:{race:60,power:60,chassis:62},driver:{raceScore:62,overtaking:50,defending:58,mistakePropensity:20,aggression:40}}},
+    C2:{performance:{car:{race:94,power:96,chassis:92},driver:{raceScore:95,overtaking:97,defending:88,mistakePropensity:15,aggression:70}}},
   });
   state=manualBattle(state,{expiresAtMs:8000});
-
   const matchup=raceBattlePerformanceMatchup(car(state,"C2"),car(state,"C1"));
   assert.ok(matchup.edge>25);
-  assert.ok(raceBattlePaceMultiplier(state,car(state,"C2"))>1.03);
-  assert.ok(raceBattlePaceMultiplier(state,car(state,"C1"))<0.97);
-
-  let next=state;
-  for(let index=0;index<80&&!next.events.some((event)=>event.type==="overtake_completed");index+=1){
-    next=stepRaceState(next);
-  }
-  assert.ok(
-    next.events.some((event)=>event.type==="overtake_completed"),
-    "stronger driver/car combination should convert a neutral-speed duel into a physical pass"
-  );
-  assert.equal(next.classification[0].carId,"C2");
+  assert.equal(raceBattlePaceMultiplier(state,car(state,"C2")),1);
+  assert.equal(raceBattlePaceMultiplier(state,car(state,"C1")),1);
 });
 
 test("RW36 a deterministic close-range attempt approaches before going side-by-side",()=>{
@@ -1008,6 +985,20 @@ test("RW11B new battles receive enough physical time to clear the defender",()=>
     car({cars:started.resolved.cars},"C2").battle.expiresAtMs,
     started.state.simulationTimeMs+started.event.payload.durationMs
   );
+});
+
+test("RW49 equal free pace without a racecraft edge cannot launch a position pass on tow alone",()=>{
+  let state=runningState({seed:"rw49-no-free-pace-edge"});
+  const equalPerformance={
+    car:{race:75,power:75,chassis:75},
+    driver:{raceScore:75,overtaking:75,defending:75,raceIntelligence:75,mistakePropensity:15,aggression:50},
+  };
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,performance:equalPerformance},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,speedMs:46,speedKmh:165.6,freeTargetSpeedKmh:180,performance:equalPerformance,traffic:{slipstreamTargetBonusKmh:9}},
+  });
+  const diagnostic=diagnoseRaceOvertakeGate(state,car(state,"C2"));
+  assert.equal(diagnostic?.reason,"free_pace_not_sustainable");
 });
 
 test("RW11B a car with no physical or performance closing potential does not spam attempts",()=>{
