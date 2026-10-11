@@ -146,8 +146,65 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.ok(finishers.some(c=>c.completedLaps===58),
     "at least one car must cross the complete race distance");
   const live=createLiveRaceRunner(initial);
-  for(let tick=0;tick<fast.tick;tick++)live.step();
+  // RW47: read-only forensic snapshots. The engine still owns classification:
+  // road-order below is a physical distance diagnostic, not official results.
+  const lapChronicle=[];
+  let lastObservedLap=0;
+  let lastObservedEventCount=0;
+  const battleEventTypes=new Set([
+    "overtake_started","overtake_side_by_side","overtake_approach_extended",
+    "overtake_completed","overtake_failed","overtake_aborted","contact",
+  ]);
+  for(let tick=0;tick<fast.tick;tick++){
+    live.step();
+    if(tick%50!==0&&tick!==fast.tick-1)continue;
+    const snapshot=live.getState();
+    const leadingLap=Math.max(0,...snapshot.cars.map(c=>Number(c.completedLaps)||0));
+    if(leadingLap<=lastObservedLap&&tick!==fast.tick-1)continue;
+    const cars=[...snapshot.cars].sort((a,b)=>
+      (Number(b.absoluteDistanceM)||0)-(Number(a.absoluteDistanceM)||0)
+    );
+    const leaderDistance=Number(cars[0]?.absoluteDistanceM)||0;
+    const events=(snapshot.events||[]).slice(lastObservedEventCount);
+    lastObservedEventCount=(snapshot.events||[]).length;
+    const battles=events.filter(e=>battleEventTypes.has(e.type)).map(e=>({
+      type:e.type,atMs:e.timeMs,drivers:e.driverIds,
+      reason:e.payload?.reason??null,kind:e.payload?.passKind??null,
+      gapM:e.payload?.gapM??e.payload?.finalGapM??null,
+      closingMs:e.payload?.actualClosingMs??e.payload?.closingPotentialMs??null,
+      driverEdge:e.payload?.driverEdge??null,
+      carEdge:e.payload?.carEdge??null,
+      strategyEdge:e.payload?.strategyEdge??null,
+      tyreGripEdge:e.payload?.tyreGripEdge??null,
+      trackPhase:e.payload?.trackPhase??null,
+    }));
+    lapChronicle.push({
+      lap:leadingLap,elapsedMs:snapshot.simulationTimeMs,
+      cars:cars.map((c,i)=>({
+        driver:c.driverId,physicalOrder:i+1,laps:c.completedLaps,
+        distanceBehindLeaderM:Number((leaderDistance-(Number(c.absoluteDistanceM)||0)).toFixed(1)),
+        speedKmh:Number((Number(c.speedKmh)||0).toFixed(1)),
+        tyre:c.tyre?.compound??null,
+        tyreConditionPct:Number((Number(c.tyre?.condition)||0).toFixed(1)),
+        strategy:c.resources?.paceMode??null,
+        damagePaceLoss:c.damage?.pace_loss_s_per_lap??0,
+        battlePhase:c.battle?.phase??null,
+        status:c.status,
+      })),
+      battles,
+    });
+    lastObservedLap=leadingLap;
+  }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
+  console.log("RW47_LAP_CHRONICLE_META="+JSON.stringify({
+    scenario:"Australia 2000",seed:input.seed??null,
+    source:"read-only canonical Live RaceState checkpoints",
+    roadOrder:"physical only; official classification remains in Results",
+    lapsRecorded:lapChronicle.length,
+  }));
+  for(const lap of lapChronicle){
+    console.log("RW47_LAP_CHRONICLE="+JSON.stringify(lap));
+  }
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
   assert.equal(archived.length,22,"all 22 starting drivers need an official result (including DNF)");
