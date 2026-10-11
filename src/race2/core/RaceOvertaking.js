@@ -162,28 +162,12 @@ export function raceBattlePerformanceMatchup(attacker,defender){
 }
 
 export function raceBattlePaceMultiplier(state,car){
-  const battle=car?.battle||{};
-  const phase=String(battle?.phase||"none");
-  if(!["approach","side_by_side"].includes(phase))return 1;
-  const opponent=carById(state?.cars,battle?.opponentCarId);
-  if(!opponent)return 1;
-
-  const attacker=String(battle?.role||"")==="attacker"?car:opponent;
-  const defender=String(battle?.role||"")==="attacker"?opponent:car;
-  const matchup=raceBattlePerformanceMatchup(attacker,defender);
-  const role=String(battle?.role||"");
-
-  if(phase==="approach"){
-    // Overtaking/defending skill must become physical before the cars are
-    // already side-by-side. Only the attacker receives the narrow approach
-    // modifier; the defender keeps its ordinary canonical pace rather than
-    // being artificially slowed to manufacture a pass.
-    if(role!=="attacker")return 1;
-    return round(clamp(1+matchup.edge*0.0010,0.96,1.04),6);
-  }
-
-  const ownEdge=role==="attacker"?matchup.edge:-matchup.edge;
-  return round(clamp(1+ownEdge*0.0022,0.90,1.10),6);
+  // Racecraft chooses whether and how to attempt a pass; it must not create a
+  // second, role-dependent speed model on top of RaceDynamics. In particular,
+  // changing attacker/defender roles after a pass must not reverse pace.
+  void state;
+  void car;
+  return 1;
 }
 
 function overtakeClosingPotentialMs(state,attacker,defender){
@@ -206,18 +190,10 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const hasFreeTelemetry=
     attackerAssisted!=null&&attackerAssisted>0&&
     defenderAssisted!=null&&defenderAssisted>0;
-  // A new battle applies a canonical attacker-only approach pace factor.
-  // Project that *same* factor while deciding whether to start the battle,
-  // so equal pre-battle free targets can still yield physical racecraft closing.
-  // Do not substitute a separate skill-derived speed when real telemetry exists.
-  const committedApproachMultiplier=hasFreeTelemetry
-    ?raceBattlePaceMultiplier(state,{
-      ...attacker,
-      battle:{phase:"approach",role:"attacker",opponentCarId:defender?.carId},
-    })
-    :1;
+  // Forecast from the same free pace and real tow consumed by
+  // RaceSimulation; no battle-only hypothetical speed is projected.
   const freeClosing=hasFreeTelemetry
-    ?(attackerAssisted*committedApproachMultiplier-defenderAssisted)/3.6
+    ?(attackerAssisted-defenderAssisted)/3.6
     :null;
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
@@ -654,6 +630,12 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
   );
   const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
+  const attackerFreeKmh=finite(attacker?.freeTargetSpeedKmh,null);
+  const defenderFreeKmh=finite(defender?.freeTargetSpeedKmh,null);
+  if(attackerFreeKmh!=null&&defenderFreeKmh!=null&&
+    attackerFreeKmh-defenderFreeKmh<0.75&&
+    raceBattlePerformanceMatchup(attacker,defender).edge<=0
+  )return reject("free_pace_not_sustainable");
   probe.closingPotentialMs=round(closingPotentialMs,3);
 
   const cornerSeverity=Math.max(
