@@ -655,6 +655,17 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
   const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
   probe.closingPotentialMs=round(closingPotentialMs,3);
+  // RW48 experimental physical opportunity gate: a momentary speed difference
+  // while exiting a corner, braking, or being pulled by another car is not
+  // sufficient evidence of an overtake that can persist after the pass.
+  // Require the canonical free-pace telemetry to support the move. Slipstream
+  // may reduce the deficit, but cannot by itself create endless reverse duels
+  // between equal cars. No artificial cooldown or position movement is added.
+  const attackerFreeKmh=finite(attacker?.freeTargetSpeedKmh,null);
+  const defenderFreeKmh=finite(defender?.freeTargetSpeedKmh,null);
+  if(attackerFreeKmh!=null&&defenderFreeKmh!=null&&
+    attackerFreeKmh-defenderFreeKmh<0.75
+  )return reject("free_pace_not_sustainable");
 
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
