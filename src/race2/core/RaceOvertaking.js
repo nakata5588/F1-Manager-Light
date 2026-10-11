@@ -27,6 +27,11 @@ export const RACE_BATTLE_CONTACT_PROXIMITY_M=2.6;
 export const RACE_BATTLE_DURATION_MS=3500;
 export const RACE_BATTLE_MAX_DURATION_MS=12000;
 export const RACE_BATTLE_EXTENSION_MS=1800;
+// A side-by-side duel may outlast its forecast only while measured clearance
+// is still improving enough to reach a decisive pass. Bound the whole duel so
+// persistent overlap cannot survive forever merely because a timer is renewed.
+export const RACE_BATTLE_DUEL_PROGRESS_GRACE_MS=2800;
+export const RACE_BATTLE_DUEL_ABSOLUTE_MAX_MS=24000;
 // An approach may outlast its initial estimate only while its measured physical
 // gap is shrinking. A fixed absolute limit prevents endless duels in traffic.
 export const RACE_BATTLE_APPROACH_PROGRESS_GRACE_MS=2800;
@@ -1074,33 +1079,61 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
 
     const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
     const defenderClearance=-clearance;
-    if(expired&&clearance>=0){
-      const extendedExpiry=nextTime+RACE_BATTLE_EXTENSION_MS;
-      const side=Number(previousBattle?.side)||1;
-      const contactRiskPct=round(contactProbability*100,5);
-      attacker=withBattle(attacker,{
-        opponentCarId:defender?.carId,
-        role:"attacker",
-        side,
-        attemptId,
-        startedTick:previousBattle?.startedTick,
-        startedAtMs:previousBattle?.startedAtMs,
-        expiresAtMs:extendedExpiry,
-        contactRiskPct,
-      });
-      defender=withBattle(defender,{
-        opponentCarId:attacker?.carId,
-        role:"defender",
-        side:-side,
-        attemptId,
-        startedTick:previousBattle?.startedTick,
-        startedAtMs:previousBattle?.startedAtMs,
-        expiresAtMs:extendedExpiry,
-        contactRiskPct,
-      });
-      cars=setCar(setCar(cars,attacker),defender);
-      bypassPairs.add(pairKey);
-      continue;
+    if(expired){
+      const startedAtMs=finite(previousBattle?.startedAtMs,nextTime);
+      const absoluteDeadlineMs=startedAtMs+RACE_BATTLE_DUEL_ABSOLUTE_MAX_MS;
+      const distanceToPassM=Math.max(0,RACE_OVERTAKE_DECISIVE_CLEARANCE_M-clearance);
+      const predictedMs=actualClosingMs>0
+        ?distanceToPassM/actualClosingMs*1000
+        :Infinity;
+      const stillPhysicallyProgressing=
+        actualClosingMs>=0.5&&
+        predictedMs<=RACE_BATTLE_DUEL_PROGRESS_GRACE_MS*1.5;
+      const progressGraceEligible=
+        nextTime<absoluteDeadlineMs&&
+        (clearance>=0||stillPhysicallyProgressing);
+      if(progressGraceEligible){
+        const graceMs=clearance>=0
+          ?RACE_BATTLE_EXTENSION_MS
+          :clamp(
+            predictedMs*1.25+300,
+            800,
+            RACE_BATTLE_DUEL_PROGRESS_GRACE_MS
+          );
+        const extendedExpiry=Math.min(absoluteDeadlineMs,nextTime+graceMs);
+        const side=Number(previousBattle?.side)||1;
+        const contactRiskPct=round(contactProbability*100,5);
+        attacker=withBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          contactRiskPct,
+        });
+        defender=withBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:extendedExpiry,
+          contactRiskPct,
+        });
+        cars=setCar(setCar(cars,attacker),defender);
+        bypassPairs.add(pairKey);
+        events.push(eventDescriptor("overtake_duel_extended",state,attacker,defender,{
+          attemptId,
+          physicalClearanceM:round(clearance,6),
+          physicalClosingMs:actualClosingMs,
+          forecastToPassMs:round(predictedMs,3),
+          newDeadlineMs:round(extendedExpiry,3),
+        }));
+        continue;
+      }
     }
     if(expired||defenderClearance>=RACE_OVERTAKE_ATTEMPT_RANGE_M){
       attacker=withYieldingBattle(attacker,{
