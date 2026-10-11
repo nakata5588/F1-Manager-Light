@@ -10,7 +10,6 @@ import {
 } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
 import { raceTeamOrderPaceMultiplier } from "./RaceTeamOrders.js";
-import { raceBattlePaceMultiplier } from "./RaceOvertaking.js";
 import { raceControlPaceMultiplier } from "./RaceControlLifecycle.js";
 
 const finite=(value,fallback=0)=>{
@@ -145,7 +144,9 @@ export function raceTargetSpeedProfile(state,car){
   const damageMultiplier=damagePaceMultiplier(state,car,rawTargetSpeedKmh);
   const controlPaceMultiplier=raceControlPaceMultiplier(state?.raceControlState?.mode);
   const teamOrderPaceMultiplier=raceTeamOrderPaceMultiplier(state,car);
-  const battlePaceMultiplier=raceBattlePaceMultiplier(state,car);
+  // RW47 experiment: do not award a second racecraft speed bonus on top of
+  // canonical driver/car/resources/track pace. Battles resolve real movement.
+  const battlePaceMultiplier=1;
   const targetSpeedKmh=Math.max(
     45,
     rawTargetSpeedKmh*
