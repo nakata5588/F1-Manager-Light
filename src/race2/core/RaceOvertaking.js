@@ -664,7 +664,8 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
   const attackerFreeKmh=finite(attacker?.freeTargetSpeedKmh,null);
   const defenderFreeKmh=finite(defender?.freeTargetSpeedKmh,null);
   if(attackerFreeKmh!=null&&defenderFreeKmh!=null&&
-    attackerFreeKmh-defenderFreeKmh<0.75
+    attackerFreeKmh-defenderFreeKmh<0.75&&
+    raceBattlePerformanceMatchup(attacker,defender).edge<=0
   )return reject("free_pace_not_sustainable");
 
   const cornerSeverity=Math.max(
