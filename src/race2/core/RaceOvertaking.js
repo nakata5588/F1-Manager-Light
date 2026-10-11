@@ -206,18 +206,11 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const hasFreeTelemetry=
     attackerAssisted!=null&&attackerAssisted>0&&
     defenderAssisted!=null&&defenderAssisted>0;
-  // A new battle applies a canonical attacker-only approach pace factor.
-  // Project that *same* factor while deciding whether to start the battle,
-  // so equal pre-battle free targets can still yield physical racecraft closing.
-  // Do not substitute a separate skill-derived speed when real telemetry exists.
-  const committedApproachMultiplier=hasFreeTelemetry
-    ?raceBattlePaceMultiplier(state,{
-      ...attacker,
-      battle:{phase:"approach",role:"attacker",opponentCarId:defender?.carId},
-    })
-    :1;
+  // RW47: forecast precisely the free physical target used by RaceDynamics.
+  // An additional hypothetical battle multiplier here would authorize a pass
+  // that the canonical movement model can never actually deliver.
   const freeClosing=hasFreeTelemetry
-    ?(attackerAssisted*committedApproachMultiplier-defenderAssisted)/3.6
+    ?(attackerAssisted-defenderAssisted)/3.6
     :null;
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
