@@ -202,8 +202,21 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     roadOrder:"physical only; official classification remains in Results",
     lapsRecorded:lapChronicle.length,
   }));
+  // Keep every record below GitHub's per-line log display limits.
+  // Each lap has one summary, 22 driver rows and bounded event chunks.
   for(const lap of lapChronicle){
-    console.log("RW47_LAP_CHRONICLE="+JSON.stringify(lap));
+    console.log("RW47_LAP_META="+JSON.stringify({
+      lap:lap.lap,elapsedMs:lap.elapsedMs,
+      cars:lap.cars.length,battles:lap.battles.length,
+    }));
+    for(const car of lap.cars){
+      console.log("RW47_LAP_DRIVER="+JSON.stringify({lap:lap.lap,...car}));
+    }
+    for(let i=0;i<lap.battles.length;i+=8){
+      console.log("RW47_LAP_BATTLES="+JSON.stringify({
+        lap:lap.lap,offset:i,events:lap.battles.slice(i,i+8),
+      }));
+    }
   }
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
