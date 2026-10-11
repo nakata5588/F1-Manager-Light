@@ -1472,3 +1472,62 @@ test("RW42 completed overtake records position, lapping and unlapping without ch
       "pass interpretation must not change the official car position");
   }
 });
+
+
+test("RW46 a side-by-side attacker still gaining physical clearance earns bounded duel time",()=>{
+  let previous=runningState({seed:"rw46-duel-progress"});
+  previous={...previous,simulationTimeMs:10_000};
+  previous=patchCars(previous,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:99,distanceAlongLapM:99,speedMs:46,speedKmh:165.6},
+  });
+  previous=manualBattle(previous,{expiresAtMs:10_050});
+  previous={...previous,cars:previous.cars.map(row=>({
+    ...row,
+    battle:{...row.battle,startedAtMs:0},
+  }))};
+  const proposed=patchCars(previous,{C2:{absoluteDistanceM:99.1,distanceAlongLapM:99.1}});
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  assert.equal(attacker.battle.phase,"side_by_side");
+  assert.equal(attacker.absoluteDistanceM,99.1,"duel extension may not move the car");
+  assert.ok(attacker.battle.expiresAtMs>10_100);
+  assert.ok(attacker.battle.expiresAtMs<=12_900);
+  const extension=result.events.find(event=>event.type==="overtake_duel_extended");
+  assert.ok(extension);
+  assert.equal(extension.payload.physicalClosingMs,1);
+  assert.ok(!result.events.some(event=>event.type==="overtake_failed"));
+});
+
+test("RW46 a stalled side-by-side duel still expires",()=>{
+  let previous=runningState({seed:"rw46-duel-stall"});
+  previous={...previous,simulationTimeMs:10_000};
+  previous=patchCars(previous,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:99,distanceAlongLapM:99,speedMs:45,speedKmh:162},
+  });
+  previous=manualBattle(previous,{expiresAtMs:10_050});
+  const result=resolveRaceOvertaking(previous,previous.cars,{stepMs:100});
+  assert.equal(car({cars:result.cars},"C2").battle.phase,"yielding");
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"timeout");
+  assert.ok(!result.events.some(event=>event.type==="overtake_duel_extended"));
+});
+
+test("RW46 side-by-side progress cannot renew a duel beyond its absolute lifetime",()=>{
+  let previous=runningState({seed:"rw46-duel-absolute"});
+  previous={...previous,simulationTimeMs:24_000};
+  previous=patchCars(previous,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:99,distanceAlongLapM:99,speedMs:46,speedKmh:165.6},
+  });
+  previous=manualBattle(previous,{expiresAtMs:24_050});
+  previous={...previous,cars:previous.cars.map(row=>({
+    ...row,
+    battle:{...row.battle,startedAtMs:0},
+  }))};
+  const proposed=patchCars(previous,{C2:{absoluteDistanceM:99.1,distanceAlongLapM:99.1}});
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  assert.equal(car({cars:result.cars},"C2").battle.phase,"yielding");
+  assert.ok(!result.events.some(event=>event.type==="overtake_duel_extended"));
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"timeout");
+});
