@@ -13,6 +13,7 @@ import {
   trackSectorAtDistance,
   wrapTrackDistanceM,
 } from "../src/race2/track/TrackModel.js";
+import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 
 function argentinaState(){
   return {
@@ -169,4 +170,51 @@ test("RW8.1 can build a physical model without display geometry",()=>{
   assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
   assert.equal(trackPoseAtDistance(model,100),null);
   assert.equal(trackSectorAtDistance(model,100),1);
+});
+
+test("Albert Park 2000 gets a provisional 16-corner speed profile, not a flat 330 km/h lap",()=>{
+  const gs={
+    activeYear:2000,
+    coreTracks:[{
+      track_id:"tr_0019",track_name:"Albert Park Grand Prix Circuit",
+      lap_length_km:5.303,overtaking_difficulty:60,tyre_wear:65,
+    }],
+  };
+  const model=buildTrackModel(gs,{
+    gp:{track_id:"tr_0019",year:2000,laps:58,gp_name:"Australian Grand Prix"},
+  });
+  assert.equal(model.lengthM,5303);
+  assert.equal(model.laps,58);
+  assert.equal(model.speedProfile.source,"historical_turn_reference_approximate");
+  assert.equal(model.speedProfile.provisional,true);
+  assert.equal(model.speedProfile.referenceCorners,16);
+  assert.ok(model.speedProfile.samples.length>=100);
+  const low=model.speedProfile.samples.reduce((a,b)=>a.severity<b.severity?a:b);
+  const high=model.speedProfile.samples.reduce((a,b)=>a.severity>b.severity?a:b);
+  assert.ok(low.severity<0.1);
+  assert.ok(high.severity>0.75,"the historic physical model must contain substantial braking zones");
+  const car={
+    speedMs:0,
+    performance:{car:{power:85,race:85,chassis:85},driver:{raceScore:85}},
+  };
+  const slow=raceTargetSpeedProfile({track:model},{
+    ...car,distanceAlongLapM:high.distanceM,
+  });
+  const fast=raceTargetSpeedProfile({track:model},{
+    ...car,distanceAlongLapM:low.distanceM,
+  });
+  assert.ok(slow.targetSpeedKmh<fast.targetSpeedKmh-70);
+  assert.ok(fast.straightTargetKmh<=350);
+  assert.ok(slow.targetSpeedKmh>=50);
+});
+
+test("Albert Park provisional physical profile is layout-era-scoped; verified Argentina remains independent",()=>{
+  const track={track_id:"tr_0019",track_name:"Albert Park",lap_length_km:5.303};
+  const gs={activeYear:2022,coreTracks:[track]};
+  const future=buildTrackModel(gs,{gp:{track_id:"tr_0019",year:2022,laps:58}});
+  assert.equal(future.speedProfile.source,"neutral");
+  assert.equal(future.speedProfile.detailed,false);
+  const historic=buildTrackModel(argentinaState(),{gp:{track_id:"tr_0018",year:1980}});
+  assert.equal(historic.speedProfile.source,"verified_functional_geometry");
+  assert.equal(historic.speedProfile.detailed,true);
 });

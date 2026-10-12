@@ -41,6 +41,8 @@ export function canonicalRaceViewCars(view){
     lateral_offset_m:finite(row?.lateral_offset_m,0),
     retirement_trackside:row?.retirement_trackside??null,
     gap_to_leader_ms:finite(row?.gap_to_leader_ms,null),
+    laps_behind:Math.max(0,finite(row?.laps_behind,0)),
+    timing_basis:row?.timing_basis??null,
     gap_to_previous_ms:finite(row?.gap_to_previous_ms??row?.interval_ms,null),
     interval_ms:finite(row?.interval_ms??row?.gap_to_previous_ms,null),
     last_lap_ms:finite(row?.last_lap_ms,null),

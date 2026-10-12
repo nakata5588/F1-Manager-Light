@@ -9,6 +9,8 @@ import {
   RACE_BATTLE_SIDE_BY_SIDE_GAP_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
+  diagnoseRaceOvertakeGate,
+  completedBattlePairCoolingDown,
   initialBattleState,
   overtakeAttemptProbability,
   raceBattlePaceMultiplier,
@@ -835,7 +837,14 @@ test("RW8.6 failed battle yields laterally until the hard gap is physically rest
   assert.equal(car(failed,"C2").battle.phase,"yielding");
   assert.equal(car(failed,"C2").battle.result,"failed");
   assert.notEqual(car(failed,"C2").lateralOffsetM,0);
-  assert.ok(failed.events.some((event)=>event.type==="overtake_failed"));
+  const failedEvent=failed.events.find((event)=>event.type==="overtake_failed");
+  assert.ok(failedEvent);
+  assert.equal(failedEvent.payload.reason,"timeout");
+  assert.ok(Number.isFinite(failedEvent.payload.actualClosingMs));
+  assert.ok(Number.isFinite(failedEvent.payload.physicalClearanceM));
+  assert.ok(Number.isFinite(failedEvent.payload.finalGapM));
+  assert.ok(Number.isFinite(failedEvent.payload.elapsedMs));
+  assert.ok(failedEvent.payload.finalGapM>=0);
 
   let recovered=failed;
   for(let index=0;index<30&&car(recovered,"C2").battle.phase!=="none";index+=1){
@@ -1293,4 +1302,173 @@ test("RW40B reaching side-by-side gets a separate physical time budget without g
   assert.equal(transition.payload.duelExpiresAtMs,attacker.battle.expiresAtMs);
   assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
     "side-by-side is not the same as a completed pass");
+});
+
+
+function expiringApproachFixture({simulationTimeMs=10_000,expiresAtMs=10_050}={}){
+  const attemptId="rw41:progress-aware:C2:C1";
+  return patchCars({
+    ...runningState({seed:"rw41-progress-aware"}),
+    simulationTimeMs,
+  },{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",
+        side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:48,speedKmh:172.8,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",
+        side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs},
+    },
+  });
+}
+
+test("RW41 approaching physically at the deadline earns a bounded grace window",()=>{
+  const previous=expiringApproachFixture();
+  const proposed=patchCars(previous,{C2:{absoluteDistanceM:90.3,distanceAlongLapM:90.3}});
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"approach");
+  assert.equal(defender.battle.phase,"approach");
+  assert.equal(attacker.absoluteDistanceM,90.3,"the extension may not move the car");
+  assert.ok(attacker.battle.expiresAtMs>10_100);
+  assert.ok(attacker.battle.expiresAtMs<=12_900);
+  assert.equal(attacker.battle.expiresAtMs,defender.battle.expiresAtMs);
+  assert.ok(result.bypassPairs.has("C1|C2"));
+  const extension=result.events.find(event=>event.type==="overtake_approach_extended");
+  assert.ok(extension);
+  assert.equal(extension.payload.physicalClosingMs,3);
+  assert.ok(!result.events.some(event=>event.type==="overtake_failed"));
+
+  const stillClosing={
+    ...previous,
+    simulationTimeMs:10_100,
+    cars:result.cars,
+  };
+  const secondProposed=patchCars(stillClosing,{
+    C2:{absoluteDistanceM:90.6,distanceAlongLapM:90.6},
+  });
+  const second=resolveRaceOvertaking(stillClosing,secondProposed.cars,{stepMs:100});
+  assert.equal(car({cars:second.cars},"C2").battle.phase,"approach");
+  assert.ok(!second.events.some(event=>event.type==="overtake_approach_extended"),
+    "the deadline must not be extended every physics tick");
+});
+
+test("RW41 a stalled approach expires and cannot gain progress-based time",()=>{
+  const previous=expiringApproachFixture();
+  const result=resolveRaceOvertaking(previous,previous.cars,{stepMs:100});
+  const attacker=car({cars:result.cars},"C2");
+  assert.equal(attacker.battle.phase,"none");
+  assert.equal(attacker.battle.result,"failed");
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"approach_timeout");
+  assert.ok(!result.events.some(event=>event.type==="overtake_approach_extended"));
+});
+
+test("RW41 an approach cannot survive its absolute physical time limit",()=>{
+  const previous=expiringApproachFixture({
+    simulationTimeMs:18_000,
+    expiresAtMs:18_050,
+  });
+  const proposed=patchCars(previous,{
+    C2:{absoluteDistanceM:90.3,distanceAlongLapM:90.3},
+  });
+  const result=resolveRaceOvertaking(previous,proposed.cars,{stepMs:100});
+  assert.equal(car({cars:result.cars},"C2").battle.phase,"none");
+  assert.ok(!result.events.some(event=>event.type==="overtake_approach_extended"));
+  assert.equal(result.events.find(event=>event.type==="overtake_failed")?.payload.reason,"approach_timeout");
+});
+
+
+test("RW41 a completed pass blocks an immediate rematch but not other opponents",()=>{
+  let state=runningState({seed:"rw41-pair-cooldown"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:107,distanceAlongLapM:107,speedMs:46,speedKmh:165.6},
+  });
+  state=manualBattle(state,{expiresAtMs:5000});
+  const result=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.ok(result.events.some(event=>event.type==="overtake_completed"));
+  const attacker=car({cars:result.cars},"C2");
+  const defender=car({cars:result.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"none");
+  assert.equal(defender.battle.phase,"none");
+  assert.equal(attacker.battle.lastCompletedOpponentCarId,"C1");
+  assert.equal(defender.battle.lastCompletedOpponentCarId,"C2");
+  const until=attacker.battle.lastCompletedOpponentCooldownUntilMs;
+  assert.ok(until>=15_000);
+  assert.equal(until,defender.battle.lastCompletedOpponentCooldownUntilMs);
+  const earlyState={...state,simulationTimeMs:until-100,cars:result.cars};
+  assert.equal(completedBattlePairCoolingDown(earlyState,attacker,defender),true);
+  assert.equal(completedBattlePairCoolingDown(earlyState,defender,attacker),true);
+  assert.equal(completedBattlePairCoolingDown(earlyState,attacker,{carId:"another-car"}),false,
+    "cooldown cannot prevent battles against unrelated opponents");
+  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),false,
+    "same rivals may challenge each other after recovery");
+});
+
+
+test("RW41 diagnostic uses the canonical attempt gates without mutating RaceState",()=>{
+  let state=runningState({seed:"rw41-gate-audit"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:120,distanceAlongLapM:120,speedMs:50,speedKmh:180},
+    C2:{absoluteDistanceM:110,distanceAlongLapM:110,speedMs:51,speedKmh:183.6},
+  });
+  const before=structuredClone(state);
+  const normal=diagnoseRaceOvertakeGate(state,car(state,"C2"));
+  assert.equal(normal.defenderCarId,"C1");
+  assert.ok(Math.abs(normal.gapM-10)<1e-9);
+  assert.ok(typeof normal.reason==="string");
+  assert.deepEqual(state,before);
+  assert.deepEqual(diagnoseRaceOvertakeGate(state,car(state,"C2")),normal,
+    "diagnosis must not consume a random roll or alter the live race");
+
+  const cooling=patchCars(state,{
+    C2:{battle:{...initialBattleState(),cooldownUntilMs:state.simulationTimeMs+1000}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(cooling,car(cooling,"C2")).reason,"attacker_cooldown");
+  const pair=patchCars(state,{
+    C2:{battle:{...initialBattleState(),
+      lastCompletedOpponentCarId:"C1",lastCompletedOpponentCooldownUntilMs:1000}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(pair,car(pair,"C2")).reason,"recent_pair_cooldown");
+  const inBattle=patchCars(state,{
+    C2:{battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker"}},
+  });
+  assert.equal(diagnoseRaceOvertakeGate(inBattle,car(inBattle,"C2")).reason,"already_battling");
+});
+
+
+test("RW42 completed overtake records position, lapping and unlapping without changing physics",()=>{
+  const contexts=[
+    {defenderAbs:100,attackerAbs:107,expected:"position",offset:0},
+    {defenderAbs:100,attackerAbs:1107,expected:"lapping",offset:1},
+    {defenderAbs:1100,attackerAbs:107,expected:"unlapping",offset:-1},
+  ];
+  for(const {defenderAbs,attackerAbs,expected,offset} of contexts){
+    let state=runningState({seed:"rw42-pass-context"});
+    state=patchCars(state,{
+      C1:{
+        absoluteDistanceM:defenderAbs,distanceAlongLapM:defenderAbs%1000,
+        speedMs:40,speedKmh:144,
+        performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+      },
+      C2:{
+        absoluteDistanceM:attackerAbs,distanceAlongLapM:attackerAbs%1000,
+        speedMs:41,speedKmh:147.6,
+        performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+      },
+    });
+    state=manualBattle(state);
+    const result=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    const completed=result.events.find(e=>e.type==="overtake_completed");
+    assert.ok(completed,expected+" must physically clear the defender");
+    assert.equal(completed.payload.passKind,expected);
+    assert.equal(completed.payload.relativeLapOffset,offset);
+    assert.equal(car({cars:result.cars},"C2").absoluteDistanceM,attackerAbs,
+      "pass interpretation must not change the official car position");
+  }
 });

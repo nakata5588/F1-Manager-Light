@@ -17,6 +17,10 @@ import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRun
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
+import { diagnoseRaceOvertakeGate } from "../src/race2/core/RaceOvertaking.js";
+import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
+import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
+import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";
 
 async function season2000(){
   const file=new URL("../public/data/seasons/2000/season.json",import.meta.url);
@@ -108,8 +112,26 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   for(const car of input.cars){
     assert.equal(car.performance.race,teamCarPerformance(gs,car.teamId,car.driverId).race);
   }
+  // Integration guard: the same official 2000 grid must use real nominated
+  // Bridgestone dry compounds and a physical, non-neutral speed profile.
+  const combinedDryTyreNames=[...new Set(input.cars.flatMap(c=>
+    c.resourceSetup?.tyres||[]).filter(t=>t.category==="dry").map(t=>t.compound_name))].sort();
+  assert.deepEqual(combinedDryTyreNames,["Medium","Soft"],
+    "2000 Australia was supplied Bridgestone Medium/Soft, not generic Hard/Soft");
+  assert.ok((input.track.speedProfile?.samples?.length||0)>=100,
+    "Albert Park 2000 must not regress to a neutral all-straight track");
+  const combinedTyreSupplier=new Set(input.cars.flatMap(c=>
+    c.resourceSetup?.tyres||[]).map(t=>t.supplier));
+  assert.deepEqual([...combinedTyreSupplier],["Bridgestone"]);
   const initial=startRaceState(createRaceState(input));
   assert.equal(initial.cars.length,22);
+  const withDrySpec=initial.cars.filter(car=>car.tyre.category==="dry");
+  assert.ok(withDrySpec.length>=18,"dry running grid should have most cars on dry rubber");
+  assert.ok(withDrySpec.every(car=>
+    car.resources.strategy.drySpecificationLocked===true&&
+    car.resources.availableTyres.filter(t=>t.category==="dry").length===1&&
+    car.resources.availableTyres.some(t=>t.tyre_id===car.tyre.tyre_id)
+  ),"historical single dry specification must be enforced by Race Core");
   const fast=runFastRaceToEnd(initial,{maxSteps:150000});
   assert.equal(fast.status,"finished");
   assert.ok(fast.tick>1000);
@@ -122,12 +144,79 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   // at the event tick. Passing a lapped car is not a change of race position.
   // The half-lap proximity guard tolerates start/finish line crossings.
   const completedPassContexts=[];
+  const quarterOfLap=lap=>lap<=15?"laps_1_15":lap<=30?"laps_16_30":lap<=45?"laps_31_45":"laps_46_58";
+  const gateAudit=Object.fromEntries(["laps_1_15","laps_16_30","laps_31_45","laps_46_58"].map(name=>
+    [name,{
+      samples:0,activeTrackCarSamples:0,
+      potentialCandidates:0,
+      byGateReason:{},
+      nearestWithin25m:0,
+      sameDistanceWithin25m:0,
+      lappingWithin25m:0,
+      sameDistanceFreeAdvantageKmh2:0,
+      sameDistanceTrafficLimited:0,
+      sameDistanceGripAdvantage2Pct:0,
+      sameDistanceBadClosing:0,
+      freeAdvantageAndTrafficLimited:0,
+      freeAdvantageAndBadClosing:0,
+      freeAdvantageTrafficLimitedAndBadClosing:0,
+      starts:0,
+      completedPasses:0,
+    }]
+  ));
+  let sampledMaxSpeedKmh=0;
   let priorEventCount=0;
   for(let tick=0;tick<fast.tick;tick++){
     const next=live.step();
+    const leadingLap=Math.min(58,Math.max(0,...next.cars.map(car=>Number(car.completedLaps)||0))+1);
+    const quarter=quarterOfLap(leadingLap);
+    const interval=gateAudit[quarter];
+    // The gate is the same one used by Race Core. Sample at 2s intervals
+    // without changing any car, battle, probability roll or event.
+    if(tick%20===0){
+      interval.samples++;
+      for(const car of next.cars){
+        if(car.dnf||car.status==="dnf"||car.status==="finished"||
+          String(car.pitState?.status??"track")!=="track")continue;
+        interval.activeTrackCarSamples++;
+        const gate=diagnoseRaceOvertakeGate(next,car);
+        interval.byGateReason[gate.reason]=(interval.byGateReason[gate.reason]||0)+1;
+        if(gate.eligible)interval.potentialCandidates++;
+        const near=nearestTrafficAhead(next,car,{ignoreBattleOpponent:false});
+        if(!near?.car||Number(near.gapM)>25)continue;
+        interval.nearestWithin25m++;
+        const directDistanceGap=Math.abs(Number(car.absoluteDistanceM)-Number(near.car.absoluteDistanceM));
+        const sameDistance=directDistanceGap<Number(input.track.lengthM)*0.5;
+        if(!sameDistance){interval.lappingWithin25m++;continue;}
+        interval.sameDistanceWithin25m++;
+        const attackerFree=Number(car.freeTargetSpeedKmh)||0;
+        const defenderFree=Number(near.car.freeTargetSpeedKmh)||0;
+        const freeAdvantage=attackerFree-defenderFree>=2;
+        const trafficLimited=Boolean(car.traffic?.limited);
+        const poorActualClosing=Number(car.speedMs)-Number(near.car.speedMs)<0.2;
+        if(freeAdvantage)interval.sameDistanceFreeAdvantageKmh2++;
+        if(trafficLimited)interval.sameDistanceTrafficLimited++;
+        if(poorActualClosing)interval.sameDistanceBadClosing++;
+        if(freeAdvantage&&trafficLimited)interval.freeAdvantageAndTrafficLimited++;
+        if(freeAdvantage&&poorActualClosing)interval.freeAdvantageAndBadClosing++;
+        if(freeAdvantage&&trafficLimited&&poorActualClosing)
+          interval.freeAdvantageTrafficLimitedAndBadClosing++;
+        const attackGrip=Number(raceResourcePerformance(car).tyreGripMultiplier)||0;
+        const defendGrip=Number(raceResourcePerformance(near.car).tyreGripMultiplier)||0;
+        if(attackGrip-defendGrip>=0.02)interval.sameDistanceGripAdvantage2Pct++;
+      }
+    }
+    // Periodic canonical speed samples; read-only and deliberately lightweight.
+    if(tick%25===0){
+      for(const car of next.cars)sampledMaxSpeedKmh=Math.max(
+        sampledMaxSpeedKmh,Number(car.speedKmh)||0
+      );
+    }
     if(next.events.length>priorEventCount){
       const newEvents=next.events.slice(priorEventCount);
       for(const event of newEvents){
+        if(event.type==="overtake_started")interval.starts++;
+        if(event.type==="overtake_completed")interval.completedPasses++;
         if(event.type!=="overtake_completed")continue;
         const attacker=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[0]));
         const defender=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[1]));
@@ -143,6 +232,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
           defenderId:defender.driverId,
           lap:Number(attacker.completedLaps||0)+1,
           sameLapProximity,
+          canonicalPassKind:String(event?.payload?.passKind??"unknown"),
           absoluteSeparationM:Number(absoluteSeparationM.toFixed(3)),
         });
       }
@@ -150,6 +240,13 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     }
   }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
+  console.log("RW41_MID_RACE_GATE_DIAGNOSTIC="+JSON.stringify({
+    scenario:"real 2000 Australia, same engine and seed, 2s samples of every on-track car",
+    caveats:["pre-attempt reasons are prioritized by canonical gate order",
+      "nearest within25m and same-distance classifications are physical proximity proxies",
+      "probability_roll samples include a deterministic random gate, not guaranteed attempts"],
+    quarters:gateAudit,
+  }));
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
   assert.equal(archived.length,22,"all 22 starting drivers need an official result (including DNF)");
@@ -160,7 +257,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const behaviour=summarizeRaceBehaviour(fast,{scenario:"2000-Australia-real-58-laps"});
   const battleTypes=new Set([
     "overtake_started","overtake_side_by_side","overtake_completed",
-    "overtake_failed","overtake_aborted","contact",
+    "overtake_failed","overtake_aborted","overtake_approach_extended","contact",
   ]);
   const battleEvents=(fast.events||[]).filter(event=>battleTypes.has(event?.type));
   const attempts=battleEvents.filter(event=>event.type==="overtake_started");
@@ -187,6 +284,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const pairedFailures=terminal.filter(e=>e.type==="overtake_failed")
     .reduce((acc,e)=>{const reason=String(e?.payload?.reason??"unknown");acc[reason]=(acc[reason]||0)+1;return acc;},{});
   const completionIds=new Set(successes.map(e=>String(e?.payload?.attemptId??"")));
+  const extensionEvents=battleEvents.filter(e=>e.type==="overtake_approach_extended");
+  const extendedAttemptIds=new Set(extensionEvents.map(e=>String(e?.payload?.attemptId??"")));
+  const sideBySideIds=new Set(battleEvents
+    .filter(e=>e.type==="overtake_side_by_side")
+    .map(e=>String(e?.payload?.attemptId??"")));
   const measuredMetrics=["driverEdge","carEdge","tyreGripEdge","strategyEdge","tyreConditionEdge","damageEdge"];
   const averagesFor=rows=>Object.fromEntries(measuredMetrics.map(key=>{
     const values=rows.map(e=>Number(e?.payload?.[key])).filter(Number.isFinite);
@@ -206,6 +308,15 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   ).size;
   const approximatePositionPasses=completedPassContexts.filter(row=>row.sameLapProximity);
   const approximateLappingPasses=completedPassContexts.filter(row=>!row.sameLapProximity);
+  const canonicalPassKinds=countBy(successes,event=>event?.payload?.passKind??"unknown");
+  const canonicalStartKinds=countBy(attempts,event=>event?.payload?.passKind??"unknown");
+  const positionPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="position");
+  const lappingPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="lapping");
+  const unlappingPasses=completedPassContexts.filter(row=>row.canonicalPassKind==="unlapping");
+  const positionalPassesByPair=countBy(approximatePositionPasses,row=>
+    [row.driverId,row.defenderId].map(String).sort().join("|")
+  );
+  const positionalPairCounts=Object.values(positionalPassesByPair);
   const battleAudit={
     scenario:"real 2000 Australian Grand Prix",
     measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
@@ -216,6 +327,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     aborted:behaviour.overtakes.aborted,
     contactEvents:behaviour.overtakes.contacts,
     sideBySideTransitionsRecorded:battleEvents.filter(e=>e.type==="overtake_side_by_side").length,
+    approachExtensions:extensionEvents.length,
+    attemptsWithApproachExtensions:extendedAttemptIds.size,
+    extendedAttemptsReachingSideBySide:[...extendedAttemptIds].filter(id=>sideBySideIds.has(id)).length,
+    extendedAttemptsCompleted:[...extendedAttemptIds].filter(id=>completionIds.has(id)).length,
     unresolvedAttemptIds:unresolved.length,
     failedReasons:pairedFailures,
     completionPct:attempts.length?Number((successes.length/attempts.length*100).toFixed(2)):null,
@@ -228,6 +343,14 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     passesByTeam,passesByDriver,
     sameLapPhysicalPasses:approximatePositionPasses.length,
     lappingOrUnlappingPhysicalPasses:approximateLappingPasses.length,
+    canonicalBattleStartsByKind:canonicalStartKinds,
+    canonicalCompletedPassesByKind:canonicalPassKinds,
+    canonicalPositionPassesByRaceQuarter:countBy(positionPasses,row=>quarterOfLap(row.lap)),
+    canonicalLappingPasses:lappingPasses.length,
+    canonicalUnlappingPasses:unlappingPasses.length,
+    uniqueSameLapOpponentPairs:positionalPairCounts.length,
+    sameLapPairsWithRepeatPasses:positionalPairCounts.filter(value=>value>1).length,
+    maximumSameLapPassesBetweenOnePair:Math.max(0,...positionalPairCounts),
     completedPassContextsRecorded:completedPassContexts.length,
     uniqueOpponentPairsWithCompletedPass:uniqueOpponentPairs,
     sameLapPassesByRaceQuarter:countBy(approximatePositionPasses,row=>
@@ -245,6 +368,24 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(completedPassContexts.length,successes.length,
     "every completed pass should retain its two physical drivers at the event tick");
   assert.equal(approximatePositionPasses.length+approximateLappingPasses.length,successes.length);
+  assert.equal(positionPasses.length+lappingPasses.length+unlappingPasses.length,successes.length,
+    "every completion must have a canonical physical pass kind");
+  assert.equal(positionPasses.length,approximatePositionPasses.length,
+    "canonical pass labels should agree with the legacy physical-distance proxy");
+  assert.equal(lappingPasses.length+unlappingPasses.length,approximateLappingPasses.length);
+  // One-to-one attempt IDs, not aggregate completion counts, identify the
+  // real bottleneck in competitive passes vs backmarker traffic.
+  const contextFunnel=diagnoseRaceBattleContexts(battleEvents);
+  assert.equal(contextFunnel.total.attempts,attempts.length);
+  assert.equal(contextFunnel.total.completed,successes.length);
+  assert.equal(contextFunnel.byStartKind.position.attempts,canonicalStartKinds.position??0);
+  assert.equal(Object.values(contextFunnel.byStartKind).reduce(
+    (sum,group)=>sum+(group.completedByPassKind.position??0),0
+  ),canonicalPassKinds.position??0,
+  "every position pass must be attributed to its original attempt kind");
+  assert.equal(contextFunnel.orphanTerminals,0,
+    "every canonical outcome must be paired to an attempt");
+  console.log("RW44_POSITION_BATTLE_FUNNEL="+JSON.stringify(contextFunnel));
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
 
   const summary={
@@ -259,4 +400,101 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     })),
   };
   console.log("REAL_2000_FULL_RACE_AUDIT="+JSON.stringify(summary));
+  const fastest=fast.cars.filter(car=>Number(car.bestLapMs)>0)
+    .sort((a,b)=>Number(a.bestLapMs)-Number(b.bestLapMs))[0];
+  const winner=fast.cars.find(car=>String(car.driverId)===String(archived[0]?.driver_id));
+  const sampleCount=input.track?.speedProfile?.samples?.length||0;
+  // Counterfactual isolated calibration: same historical grid/car/driver snapshots
+  // and same circuit, but dry track throughout. The generated career's actual
+  // forecast/rain scenario above remains unchanged and fully parity-tested.
+  const dryInput=structuredClone(input);
+  dryInput.weather={
+    ...dryInput.weather,
+    state:"SUNNY",wet_race:false,rain_intensity:0,
+    starting_track_wetness:0,track_wetness:0,
+    segments:[{from_lap:1,to_lap:58,state:"SUNNY"}],
+    timeline:[],
+  };
+  let normalizedWetStarts=0;
+  for(const car of dryInput.cars){
+    const tyres=car.resourceSetup?.tyres||[];
+    const planned=car.resourceSetup?.strategy?.startTyreId;
+    const selected=tyres.find(t=>String(t.tyre_id)===String(planned));
+    if(selected&&selected.category!=="dry"){
+      const dryTyre=tyres.filter(t=>t.category==="dry")
+        .sort((a,b)=>Number(a.wear_rate)-Number(b.wear_rate))[0];
+      assert.ok(dryTyre,"dry calibration requires a dry tyre in every team's allocation");
+      car.resourceSetup.strategy.startTyreId=dryTyre.tyre_id;
+      normalizedWetStarts++;
+    }
+  }
+  const dryInitial=startRaceState(createRaceState(dryInput));
+  const dryFast=runFastRaceToEnd(dryInitial,{maxSteps:150000});
+  assert.equal(dryFast.status,"finished");
+  const dryFastest=dryFast.cars.filter(car=>Number(car.bestLapMs)>0)
+    .sort((a,b)=>Number(a.bestLapMs)-Number(b.bestLapMs))[0];
+  const dryWinner=dryFast.cars.filter(car=>car.status==="finished")
+    .sort((a,b)=>Number(a.finishTimeMs)-Number(b.finishTimeMs))[0];
+  const history=(car)=>car?.pitState?.history||[];
+  const lapDistribution=(car)=>{
+    const laps=(car?.lapTimes||[]).map(row=>typeof row==="number"?row:
+      Number(row?.lapTimeMs??row?.lap_time_ms??row?.timeMs??row?.durationMs??NaN))
+      .filter(Number.isFinite).filter(n=>n>10000);
+    const sorted=[...laps].sort((a,b)=>a-b);
+    return {n:laps.length,medianMs:sorted.length?sorted[Math.floor(sorted.length/2)]:null,
+      meanMs:laps.length?Math.round(laps.reduce((a,b)=>a+b,0)/laps.length):null,
+      minMs:sorted[0]??null,maxMs:sorted.at(-1)??null};
+  };
+  const audit={
+    baselineSource:"PR #480 track profile; isolated weather-only benchmark",
+    scenario:"Australia 2000 full-grid, same historical inputs, dry track all 58 laps",
+    gridSize:dryInput.cars.length,laps:dryInput.track.laps,
+    dryWetStartOverrides:normalizedWetStarts,
+    rainScenario:{winnerFinishMs:winner?.finishTimeMs??null,
+      fastestLapMs:fastest?.bestLapMs??null,pitCount:history(winner).length,
+      pitLaps:history(winner).map(row=>row.lap),lapDistribution:lapDistribution(winner)},
+    dryScenario:{winnerDriverId:dryWinner?.driverId??null,
+      winnerFinishMs:dryWinner?.finishTimeMs??null,
+      fastestLapMs:dryFastest?.bestLapMs??null,
+      pitCount:history(dryWinner).length,
+      pitLaps:history(dryWinner).map(row=>row.lap),
+      lapDistribution:lapDistribution(dryWinner),
+      finishers:dryFast.cars.filter(car=>car.status==="finished").length},
+    historicalReference:{winnerFinishMs:5641987,fastestLapMs:91481},
+  };
+  console.log("REAL_2000_DRY_PACE_CONTROL="+JSON.stringify(audit));
+  console.log("REAL_2000_COMBINED_TRACK_TYRES="+JSON.stringify({
+    baselineCommit:"4b314dae5c2153f5883526f9dc436373cd1b76f0",
+    year:2000,track:input.track.trackId,
+    physicalSpeedSource:input.track.speedProfile?.source??null,
+    corners:input.track.speedProfile?.referenceCorners??null,
+    sampledMaxSpeedKmh:Number(sampledMaxSpeedKmh.toFixed(3)),
+    dryAvailable:combinedDryTyreNames,tyreSupplier:[...combinedTyreSupplier],
+    startingCompounds:initial.cars.reduce((acc,car)=>{
+      const tyre=String(car.tyre?.compound||"unknown");
+      acc[tyre]=(acc[tyre]||0)+1;
+      return acc;
+    },{}),
+    lockedDrySpecCars:withDrySpec.length,
+    canonicalLiveAutosimParity:true,
+  }));
+  console.log("REAL_2000_PACE_AUDIT="+JSON.stringify({
+    track:input.track.trackId,
+    profileSource:input.track?.speedProfile?.source||"missing",
+    profileSampleCount:sampleCount,
+    profileMaxSeverity:Math.max(0,...(input.track?.speedProfile?.samples||[]).map(p=>Number(p.severity)||0)),
+    straightSpeedFactor:input.track?.speedProfile?.straightSpeedFactor??1,
+    brakingModel:input.track?.speedProfile?.brakingModel??"legacy",
+    fastestLapMs:fastest?.bestLapMs??null,
+    fastestLapDriverId:fastest?.driverId??null,
+    fastestLapNumber:fastest?.bestLapNumber??null,
+    winnerFinishMs:winner?.finishTimeMs??null,
+    averageWinnerSpeedKmh:winner?.finishTimeMs>0
+      ?Number((input.track.lengthM*input.track.laps*3.6/(winner.finishTimeMs/1000)).toFixed(3))
+      :null,
+    maxSampledSpeedKmh:Number(sampledMaxSpeedKmh.toFixed(3)),
+    winnerPitLaps:(winner?.pitState?.history||[]).map(stop=>Number(stop.lap)),
+    startingWeather:input.weather?.segments?.[0]?.state??input.weather?.state??null,
+    dryStart:((input.weather?.timeline||[])[0]?.track_wetness??null)===0,
+  }));
 });

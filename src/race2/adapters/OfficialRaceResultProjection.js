@@ -155,6 +155,7 @@ export function projectCanonicalRaceStateToOfficialRows(gs,state){
       status:retired?"DNF":"Finished",
       retirement_reason:retired?(car?.retirement?.reason??retirementEvent?.payload?.reason??"Retired"):null,
       laps_completed:completedLaps,
+      laps_behind:retired?null:Math.max(0,Math.floor(finite(row?.lapsBehind,0))),
       race_laps:totalLaps,
       incident_lap:retired?Math.max(1,Math.floor(finite(car?.lap,completedLaps+1))):null,
       incident_sector:retired?Math.max(1,Math.floor(finite(car?.sector,1))):null,

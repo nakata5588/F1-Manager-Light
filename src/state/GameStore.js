@@ -13,9 +13,10 @@ import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { applyPlayerManagerTeamPrincipalAppointment, playerManagerIsActiveTeamPrincipal } from "@/domain/managerEmployment";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
+import { legacyCompatibleSaveState } from "@/core/saveSections";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
-import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/domain/sessionRecovery";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot, clearSessionRecoverySnapshot } from "@/domain/sessionRecovery";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
@@ -47,6 +48,7 @@ import { refreshBoardAssessment } from "@/domain/boardState";
 import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
 import { nextRacePlaybackEpoch, racePlaybackAdvanceAllowed } from "@/race2/runtime/RacePlaybackGate.js";
 import { createManualSaveWriter, isSaveQuotaError } from "./manualSavePersistence.js";
+import { createLegacyCareerRepository } from "./careerSaveRepository.js";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -92,20 +94,10 @@ async function fetchOptional(path, fallback = []) {
 }
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
-const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules","dbLowerSeriesTeams","dbLowerSeriesEntries",
-  "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
-  "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
-  "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
-  "dbTyres","dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides","dbPenaltiesRules","dbFinancialRules",
-  "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbTeamLineageHistory","dbCoreTracks",
-  "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
-];
 export function makeLightSnapshot(gs) {
-  const light = { ...gs };
-  for (const k of HEAVY_KEYS) delete light[k];
-  return prepareGameStateForSave(light);
+  // Reference, career, active race and archived Results have one ownership map.
+  // Keep the v2 flat save envelope unchanged; never compact a live race here.
+  return prepareGameStateForSave(legacyCompatibleSaveState(gs || {}));
 }
 function setItemQuotaSafe(key, value) {
   try {
@@ -184,21 +176,7 @@ function hydrateLoadedGameState(saved) {
 
 function latestManualSaveKey() {
   try {
-    const items = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key || !key.startsWith(SAVE_PREFIX)) continue;
-      const raw = localStorage.getItem(key);
-      let ts = 0;
-      try { ts = Date.parse(JSON.parse(raw)?.meta?.savedAt || ""); } catch {}
-      if (!Number.isFinite(ts) || ts <= 0) {
-        const match = String(key).match(/(\d{10,})$/);
-        if (match) ts = Number(match[1]);
-      }
-      items.push({ key, ts: Number(ts) || 0 });
-    }
-    items.sort((a, b) => b.ts - a.ts);
-    return items[0]?.key || null;
+    return createLegacyCareerRepository({ storage: localStorage }).latestManualSaveKey();
   } catch {
     return null;
   }
@@ -1746,7 +1724,7 @@ export const useGame = create((set, get) => ({
 
   loadLocal: () => {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = createLegacyCareerRepository({ storage: localStorage }).readContinue();
       if (!raw) return false;
       const saved = extractGameStateFromStoredSave(JSON.parse(raw));
       set({ gameState: hydrateLoadedGameState(saved), currentSaveKey: null });
@@ -1759,12 +1737,7 @@ export const useGame = create((set, get) => ({
 
   hasAnySave: () => {
     try {
-      if (localStorage.getItem(SAVE_KEY)) return true;
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(SAVE_PREFIX)) return true;
-      }
-      return false;
+      return createLegacyCareerRepository({ storage: localStorage }).hasAnySave();
     } catch {
       return false;
     }
@@ -1798,6 +1771,12 @@ export const useGame = create((set, get) => ({
     if (!gs || typeof gs !== "object") return null;
     const migrated = extractGameStateFromStoredSave(gs);
     set({ gameState: hydrateLoadedGameState(migrated), currentSaveKey: null });
+    // An explicit load is authoritative; an older tab journal must not
+    // overwrite it on the next refresh, even within the same career.
+    clearSessionRecoverySnapshot(
+      typeof sessionStorage === "undefined" ? null : sessionStorage,
+      SESSION_RECOVERY_KEY
+    );
     return migrated;
   },
 
@@ -1814,8 +1793,10 @@ export const useGame = create((set, get) => ({
         seed: light.saveMeta?.seed ?? null,
         savedAt: nowIso(),
       };
-      const result = writeManualSave({
+      const result = createLegacyCareerRepository({
         storage: localStorage,
+        manualWriter: writeManualSave,
+      }).saveManual({
         gameState: light,
         meta,
         overwriteKey: options?.overwriteKey || null,
@@ -1843,19 +1824,25 @@ export const useGame = create((set, get) => ({
   },
 
   getLastSaveKey: () => {
-    try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; }
+    try {
+      return createLegacyCareerRepository({ storage: localStorage }).getLastManualSaveKey();
+    } catch { return null; }
   },
 
   loadFromKey: (key) => {
     if (!key) return null;
     try {
-      const raw = localStorage.getItem(key);
+      const raw = createLegacyCareerRepository({ storage: localStorage }).readSlot(key);
       if (!raw) return null;
       const obj = safeJSONParse(raw);
       if (!obj || typeof obj !== "object") return null;
       const gs = extractGameStateFromStoredSave(obj);
       if (gs && typeof gs === "object") {
         set({ gameState: hydrateLoadedGameState(gs), currentSaveKey: key });
+        clearSessionRecoverySnapshot(
+          typeof sessionStorage === "undefined" ? null : sessionStorage,
+          SESSION_RECOVERY_KEY
+        );
         try {
           localStorage.setItem(LAST_SAVE_KEY, key);
           // Loading a manual/imported save must also become the active Continue

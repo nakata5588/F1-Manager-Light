@@ -99,21 +99,38 @@ export function materializeOfficialRaceRows(rows=[],{raceControlPlan=null}={}){
 
   const finishers=canonical.filter((row)=>!row.retired);
   const winnerTime=finishers.length?finiteNumber(finishers[0]?.total_time_ms):null;
+  const winnerLaps=finishers.length?finiteNumber(finishers[0]?.laps_completed):null;
   let previousTime=winnerTime;
   const timingByDriver=new Map();
 
   finishers.forEach((row,index)=>{
     const total=finiteNumber(row?.total_time_ms);
-    const gapToWinner=total!==null&&winnerTime!==null
-      ?Math.max(0,total-winnerTime)
-      :finiteNumber(row?.gap_to_winner_ms);
-    const gapToPrevious=index===0
-      ?0
-      :total!==null&&previousTime!==null
-        ?Math.max(0,total-previousTime)
-        :finiteNumber(row?.gap_to_previous_ms);
+    const completedLaps=finiteNumber(row?.laps_completed);
+    const previousLaps=index>0?finiteNumber(finishers[index-1]?.laps_completed):null;
+    // The canonical projection supplies laps_behind. The completed-laps
+    // fallback keeps older saved race results readable without changing the
+    // race's authoritative finishing order or times.
+    const lapsBehind=Math.max(0,finiteNumber(row?.laps_behind)??(
+      winnerLaps!==null&&completedLaps!==null?winnerLaps-completedLaps:0
+    ));
+    const intervalLaps=previousLaps!==null&&completedLaps!==null
+      ?Math.max(0,previousLaps-completedLaps)
+      :0;
+    const gapToWinner=lapsBehind>0
+      ?null
+      :total!==null&&winnerTime!==null
+        ?Math.max(0,total-winnerTime)
+        :finiteNumber(row?.gap_to_winner_ms);
+    const gapToPrevious=intervalLaps>0
+      ?null
+      :index===0
+        ?0
+        :total!==null&&previousTime!==null
+          ?Math.max(0,total-previousTime)
+          :finiteNumber(row?.gap_to_previous_ms);
     timingByDriver.set(idOf(row),{
       total_time_ms:total,
+      laps_behind:lapsBehind,
       gap_to_winner_ms:gapToWinner,
       gap_to_previous_ms:gapToPrevious,
     });

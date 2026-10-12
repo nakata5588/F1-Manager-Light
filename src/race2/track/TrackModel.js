@@ -6,6 +6,7 @@
 import { resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 import { simplifyClosedPolyline } from "../../domain/trackSceneGeometry.js";
+import { provisionalAlbertParkSpeedProfile } from "../../data/tracks/tr_0019_1996_2020.speedProfile.js";
 
 export const TRACK_MODEL_SCHEMA_VERSION=2;
 
@@ -239,6 +240,14 @@ export function buildTrackSpeedProfile(model,{detailed=null}={}){
     )
     :Boolean(detailed);
 
+  // Historical photographs/diagrammes are not verified GPS racing lines.
+  // Until a functional F1Track path exists, permit an explicitly provisional
+  // circuit-specific turn profile rather than treating the entire lap as a
+  // full-throttle straight. Verified functional paths always take precedence.
+  if(!trusted){
+    const provisional=provisionalAlbertParkSpeedProfile(model?.trackId,model?.year,length);
+    if(provisional)return provisional;
+  }
   if(length<=0||!hasLine||!trusted){
     return {
       source:"neutral",
@@ -353,6 +362,8 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     y>=packageYearFrom&&y<=packageYearTo
   );
   const speedProfile=buildTrackSpeedProfile({
+    trackId:id,
+    year:y,
     lengthM,
     racingLine:racingLineContract,
     geometry:geometryContract,

@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { createRaceState, DEFAULT_RACE_STEP_MS, RACE_STATE_SCHEMA_VERSION } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs } from "../src/race2/core/RaceLapTiming.js";
+import { buildRaceClassification } from "../src/race2/core/RaceClassification.js";
+import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 
 function input({laps=2,cars=2}={}){
   const entries=Array.from({length:cars},(_,index)=>({driverId:`D${index+1}`,teamId:index<2?"T1":"T2",carId:`car_${index+1}`,status:"confirmed"}));
@@ -343,4 +345,122 @@ test("RW13A canonical lap timing records position gained or lost during each com
   assert.deepEqual(afterLapTwo.lapPositionHistory.at(-1),{
     lap:2,position:2,previousPosition:1,change:-1,
   });
+});
+
+test("RW checkered: lapped drivers finish on their next crossing, with official lap gaps",()=>{
+  const started=startRaceState(createRaceState(input({laps:3,cars:3}),{stepMs:1000}));
+  const previous={
+    ...started,
+    cars:started.cars.map((car,index)=>{
+      const absoluteDistanceM=[299,199,99][index];
+      return {
+        ...car,
+        absoluteDistanceM,
+        distanceAlongLapM:99,
+        completedLaps:[2,1,0][index],
+        lap:[3,2,1][index],
+        lapStartedAtMs:0,
+      };
+    }),
+  };
+  const proposed=previous.cars.map((car,index)=>({
+    ...car,
+    absoluteDistanceM:[300,201,101][index],
+    completedLaps:[3,2,1][index],
+    distanceAlongLapM:index===0?0:1,
+    status:index===0?"finished":"running",
+    zoneId:index===0?"finish":car.zoneId,
+    zoneType:index===0?"finish":car.zoneType,
+    finishTimeMs:index===0?250:null,
+  }));
+  const finished=applyCanonicalLapTiming(previous,proposed,{stepMs:1000});
+  assert.deepEqual(finished.map((car)=>car.status),["finished","finished","finished"]);
+  assert.deepEqual(finished.map((car)=>car.completedLaps),[3,2,1]);
+  assert.deepEqual(finished.map((car)=>car.absoluteDistanceM),[300,200,100]);
+  assert.deepEqual(finished.map((car)=>car.finishTimeMs),[250,500,500]);
+  assert.ok(finished.every((car)=>car.zoneType==="finish"));
+  const rows=buildRaceClassification({...previous,cars:finished});
+  assert.deepEqual(rows.map((row)=>row.lapsBehind),[0,1,2]);
+  assert.equal(rows[1].timingBasis,"lap_gap");
+  assert.equal(rows[2].timingBasis,"lap_gap");
+  assert.equal(rows[1].gapToLeaderMs,null);
+  assert.equal(rows[2].gapToLeaderMs,null);
+});
+
+test("RW checkered: a crossing before the winner in the same tick does not finish a car",()=>{
+  const started=startRaceState(createRaceState(input({laps:3,cars:2}),{stepMs:1000}));
+  const previous={
+    ...started,
+    cars:started.cars.map((car,index)=>({
+      ...car,
+      absoluteDistanceM:index===0?299:99,
+      distanceAlongLapM:99,
+      completedLaps:index===0?2:0,
+      lap:index===0?3:1,
+      lapStartedAtMs:0,
+    })),
+  };
+  const first=applyCanonicalLapTiming(previous,[
+    {...previous.cars[0],absoluteDistanceM:300,completedLaps:3,status:"finished",finishTimeMs:800},
+    {...previous.cars[1],absoluteDistanceM:199,completedLaps:1,distanceAlongLapM:99,status:"running"},
+  ],{stepMs:1000});
+  assert.equal(first[0].finishTimeMs,800);
+  assert.equal(first[1].status,"running");
+  assert.equal(first[1].finishTimeMs,null);
+
+  const resumed={
+    ...previous,
+    simulationTimeMs:1000,
+    officialRaceTimeMs:1000,
+    session:{
+      ...previous.session,
+      clock:{...previous.session.clock,officialElapsedMs:1000},
+    },
+    cars:first,
+  };
+  const second=applyCanonicalLapTiming(resumed,[
+    first[0],
+    {...first[1],absoluteDistanceM:201,completedLaps:2,distanceAlongLapM:1,lap:3},
+  ],{stepMs:1000});
+  assert.equal(second[1].status,"finished");
+  assert.equal(second[1].completedLaps,2);
+  assert.equal(second[1].absoluteDistanceM,200);
+  assert.equal(second[1].finishTimeMs,1500);
+  assert.equal(buildRaceClassification({...resumed,cars:second})[1].lapsBehind,1);
+});
+
+test("RW checkered: a DNF is not converted into a classified finisher",()=>{
+  const started=startRaceState(createRaceState(input({laps:3,cars:2})));
+  const previous={
+    ...started,
+    cars:started.cars.map((car,index)=>({
+      ...car,
+      absoluteDistanceM:index===0?299:99,
+      completedLaps:index===0?2:0,
+      lapStartedAtMs:0,
+      dnf:index===1,
+      status:index===1?"dnf":"running",
+    })),
+  };
+  const [winner,retired]=applyCanonicalLapTiming(previous,[
+    {...previous.cars[0],absoluteDistanceM:300,completedLaps:3,status:"finished",finishTimeMs:50},
+    {...previous.cars[1],absoluteDistanceM:101,completedLaps:1,status:"dnf"},
+  ],{stepMs:100});
+  assert.equal(winner.status,"finished");
+  assert.equal(retired.status,"dnf");
+  assert.equal(retired.finishTimeMs,null);
+});
+
+test("RW checkered: official result materializer retains +1/+2 Lap and null millisecond gaps",()=>{
+  const rows=materializeOfficialRaceRows([
+    {position:1,driver_id:"D1",status:"Finished",laps_completed:3,race_laps:3,total_time_ms:5000},
+    {position:2,driver_id:"D2",status:"Finished",laps_completed:2,race_laps:3,
+      total_time_ms:5500,laps_behind:1,gap_to_winner_ms:null},
+    {position:3,driver_id:"D3",status:"Finished",laps_completed:1,race_laps:3,
+      total_time_ms:6000,laps_behind:2,gap_to_winner_ms:null},
+  ]);
+  assert.deepEqual(rows.map((row)=>row.laps_behind),[0,1,2]);
+  assert.deepEqual(rows.map((row)=>row.gap_to_winner_ms),[0,null,null]);
+  assert.deepEqual(rows.map((row)=>row.gap_to_previous_ms),[0,null,null]);
+  assert.deepEqual(rows.map((row)=>row.total_time_ms),[5000,5500,6000]);
 });

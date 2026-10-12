@@ -91,8 +91,8 @@ function projectedGapMs(gapM,referenceSpeedMs){
 function rowTimingBasis(car,{leader=false,leaderCar=null,lapsBehind=0}={}){
   if(leader)return "leader";
   if(car?.dnf||car?.status==="dnf")return "unavailable";
-  if(car?.status==="finished"&&leaderCar?.status==="finished")return "finish_time";
   if(lapsBehind>0)return "lap_gap";
+  if(car?.status==="finished"&&leaderCar?.status==="finished")return "finish_time";
   return "distance_projection";
 }
 
@@ -123,6 +123,7 @@ export function buildRaceClassification(state){
       gapToLeaderMs=0;
       intervalMs=0;
     }else if(
+      lapsBehind===0&&
       car?.status==="finished"&&leader?.status==="finished"&&
       finishTime!=null&&leaderFinish!=null
     ){

@@ -78,14 +78,16 @@ export function raceTargetSpeedProfile(state,car){
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
   const distance=finite(car?.distanceAlongLapM,0);
   const currentSeverity=trackCornerSeverityAtDistance(state?.track,distance);
-  const lookaheadM=clamp(45+speedMs*1.55,45,185);
-  const aheadSeverity=trackCornerSeverityAhead(
+  const kinematicBraking=state?.track?.speedProfile?.brakingModel==="distance_sensitive";
+  const lookaheadM=kinematicBraking
+    ?clamp(85+speedMs*4.1,85,450)
+    :clamp(45+speedMs*1.55,45,185);
+  const aheadSeverity=kinematicBraking?null:trackCornerSeverityAhead(
     state?.track,
     distance,
     lookaheadM,
     {samples:6}
   );
-  const effectiveSeverity=clamp(Math.max(currentSeverity,aheadSeverity*0.96),0,1);
 
   const power=performanceScore(car,"power",70);
   const race=performanceScore(car,"race",70);
@@ -94,10 +96,47 @@ export function raceTargetSpeedProfile(state,car){
 
   const straightScore=power*0.55+race*0.30+driver*0.15;
   const straightFactor=clamp(0.90+straightScore*0.00135,0.90,1.04);
+  // Era and actual car/driver performance set the free straight speed.
+  // Corner severity and braking distance — not a track-specific magic cap —
+  // determine how much of it is physically reachable on a given circuit.
   const straightTarget=eraStraightSpeedKmh(state?.track?.year)*straightFactor;
 
   const handlingScore=chassis*0.55+race*0.20+driver*0.25;
-  const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44);
+  const cornerRetentionFactor=clamp(
+    finite(state?.track?.speedProfile?.cornerRetentionFactor,1),0.7,1.1
+  );
+  const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44)*
+    cornerRetentionFactor;
+  // The legacy model applies the entire upcoming corner speed across the
+  // full lookahead distance. With an actual 16-corner circuit this causes
+  // prolonged unnatural low-speed zones. On profiles explicitly opting in,
+  // instead derive the safe *current* speed from the physical braking distance:
+  // v_now^2 <= v_corner^2 + 2*a*distance. No speed or position teleports.
+  // Other tracks retain their historical behaviour until individually audited.
+  let effectiveSeverity=clamp(Math.max(currentSeverity,(aheadSeverity??0)*0.96),0,1);
+  if(kinematicBraking){
+    const plannedDecelMs2=7.7;
+    const brakingMarginM=12;
+    const probes=12;
+    let maxSafeNowKmh=straightTarget;
+    for(let i=1;i<=probes;i+=1){
+      const distanceAhead=lookaheadM*i/probes;
+      const severity=trackCornerSeverityAtDistance(state?.track,distance+distanceAhead);
+      const safeCornerKmh=straightTarget*(1-severity*(1-cornerRetention));
+      const safeNowKmh=3.6*Math.sqrt(
+        (safeCornerKmh/3.6)**2+
+        2*plannedDecelMs2*Math.max(0,distanceAhead-brakingMarginM)
+      );
+      maxSafeNowKmh=Math.min(maxSafeNowKmh,safeNowKmh);
+    }
+    const immediateCornerKmh=straightTarget*
+      (1-currentSeverity*(1-cornerRetention));
+    const constrainedKmh=Math.min(immediateCornerKmh,maxSafeNowKmh);
+    effectiveSeverity=clamp(
+      (1-constrainedKmh/Math.max(1,straightTarget))/
+        Math.max(0.01,1-cornerRetention),0,1
+    );
+  }
   const resourcePerformance=raceResourcePerformance(car);
   const rawTargetSpeedKmh=Math.max(
     55,

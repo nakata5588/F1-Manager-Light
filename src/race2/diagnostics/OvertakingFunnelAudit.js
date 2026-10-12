@@ -84,3 +84,132 @@ export function diagnoseOvertakingEvents(events=[]){
     samples:rows.slice(0,50),
   };
 }
+
+
+// RW44: distinguish *attempt* context from *completion* context. Counting
+// completions alone misrepresents position-fight conversion when most traffic
+// is lapped. Uses canonical event IDs/physical pass kinds; read-only.
+export function diagnoseRaceBattleContexts(events=[]){
+  const numeric=value=>value===null||value===undefined||value===""?null:finite(value);
+  const attempts=new Map();
+  let orphanTerminals=0;
+  let repeatedTerminals=0;
+  for(const event of events||[]){
+    const type=String(event?.type??"");
+    const payload=event?.payload||{};
+    const id=payload.attemptId==null?null:String(payload.attemptId);
+    if(!id)continue;
+    if(type==="overtake_started"){
+      attempts.set(id,{
+        kind:String(payload.passKind??"unknown"),
+        trackPhase:String(payload.trackPhase??"unknown"),
+        startTimeMs:numeric(event?.timeMs),
+        gapM:numeric(payload.gapM),
+        closingPotentialMs:numeric(payload.closingPotentialMs),
+        tyreGripEdge:numeric(payload.tyreGripEdge),
+        tyreConditionEdge:numeric(payload.tyreConditionEdge),
+        carEdge:numeric(payload.carEdge),
+        driverEdge:numeric(payload.driverEdge),
+        strategyEdge:numeric(payload.strategyEdge),
+        attemptedQuarter:null,
+        reachedSideBySide:false,
+        reachedAtMs:null,
+        sideBySideClosingMs:null,
+        outcome:"unresolved",
+        reason:null,
+        finalGapM:null,
+        finalClosingMs:null,
+        completedKind:null,
+        terminalTimeMs:null,
+        extensions:0,
+      });
+      continue;
+    }
+    const item=attempts.get(id);
+    if(!item){
+      if(["overtake_completed","overtake_failed","overtake_aborted","contact"].includes(type))orphanTerminals++;
+      continue;
+    }
+    if(type==="overtake_approach_extended"){
+      item.extensions++;
+      continue;
+    }
+    if(type==="overtake_side_by_side"){
+      item.reachedSideBySide=true;
+      item.reachedAtMs=numeric(event?.timeMs);
+      item.sideBySideClosingMs=numeric(payload.actualClosingMs);
+      continue;
+    }
+    if(!["overtake_completed","overtake_failed","overtake_aborted","contact"].includes(type))continue;
+    if(item.outcome!=="unresolved"){
+      repeatedTerminals++;
+      continue;
+    }
+    item.outcome=type==="overtake_completed"?"completed"
+      :type==="overtake_failed"?"failed"
+      :type==="overtake_aborted"?"aborted":"contact";
+    item.reason=payload.reason==null?null:String(payload.reason);
+    item.finalGapM=numeric(payload.finalGapM);
+    item.finalClosingMs=numeric(payload.actualClosingMs);
+    item.terminalTimeMs=numeric(event?.timeMs);
+    item.completedKind=item.outcome==="completed"?String(payload.passKind??"unknown"):null;
+  }
+  const average=(rows,key)=>{
+    const v=rows.map(item=>item[key]).filter(x=>x!=null&&Number.isFinite(x));
+    return v.length?round(v.reduce((a,b)=>a+b,0)/v.length):null;
+  };
+  const countBy=(rows,key)=>{
+    const result={};
+    for(const row of rows){
+      const k=String(key(row)??"unknown");
+      result[k]=(result[k]??0)+1;
+    }
+    return result;
+  };
+  const summary=(rows)=>{
+    const done=rows.filter(x=>x.outcome==="completed");
+    const failed=rows.filter(x=>x.outcome==="failed");
+    const sideBySide=rows.filter(x=>x.reachedSideBySide);
+    const failedBefore=failed.filter(x=>!x.reachedSideBySide);
+    const failedAfter=failed.filter(x=>x.reachedSideBySide);
+    return {
+      attempts:rows.length,
+      reachedSideBySide:sideBySide.length,
+      completed:done.length,
+      completionPct:percent(done.length,rows.length),
+      completedByPassKind:countBy(done,x=>x.completedKind),
+      outcomes:countBy(rows,x=>x.outcome),
+      failedBeforeSideBySide:failedBefore.length,
+      failedAfterSideBySide:failedAfter.length,
+      failuresByReason:countBy(failed,x=>x.reason||"unknown"),
+      failuresBeforeByReason:countBy(failedBefore,x=>x.reason||"unknown"),
+      failuresAfterByReason:countBy(failedAfter,x=>x.reason||"unknown"),
+      attemptsByTrackPhase:countBy(rows,x=>x.trackPhase),
+      approachesExtended:rows.filter(x=>x.extensions>0).length,
+      averageStartGapM:average(rows,"gapM"),
+      averageClosingPotentialMs:average(rows,"closingPotentialMs"),
+      averageTyreGripEdge:average(rows,"tyreGripEdge"),
+      averageTyreConditionEdge:average(rows,"tyreConditionEdge"),
+      averageDriverEdge:average(rows,"driverEdge"),
+      averageCarEdge:average(rows,"carEdge"),
+      averageStrategyEdge:average(rows,"strategyEdge"),
+      averageSideBySideClosingMs:average(sideBySide,"sideBySideClosingMs"),
+      averageFailedBeforeLastClosingMs:average(failedBefore,"finalClosingMs"),
+      averageFailedBeforeFinalGapM:average(failedBefore,"finalGapM"),
+      averageFailedAfterLastClosingMs:average(failedAfter,"finalClosingMs"),
+      averageSuccessfulDurationMs:average(done.map(x=>({
+        duration:x.startTimeMs==null||x.terminalTimeMs==null
+          ?null:Math.max(0,x.terminalTimeMs-x.startTimeMs),
+      })),"duration"),
+    };
+  };
+  const all=[...attempts.values()];
+  const kinds=["position","lapping","unlapping","unknown"];
+  return {
+    total:summary(all),
+    byStartKind:Object.fromEntries(kinds.map(kind=>[kind,summary(all.filter(x=>x.kind===kind))])),
+    orphanTerminals,
+    repeatedTerminals,
+    note:"Attempt classification is captured at launch; completion pass kind may differ. All figures derive from canonical event stream without modifying race physics.",
+  };
+}

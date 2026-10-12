@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
-import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
+import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam, legalTyresForChosenDrySpecification } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
@@ -93,10 +93,21 @@ function formatRaceTime(ms){
     :`${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
 }
 function formatInterval(ms,{leader=false}={}){
-  const n=Number(ms);
   if(leader)return "LEADER";
+  if(ms==null||ms==="")return "—";
+  const n=Number(ms);
   if(!Number.isFinite(n)||n<0)return "—";
   return "+"+(n/1000).toFixed(3);
+}
+function formatOfficialRaceGap(row){
+  const laps=Number(row?.laps_behind);
+  if(Number.isFinite(laps)&&laps>0)return `+${laps} Lap${laps===1?"":"s"}`;
+  return formatInterval(row?.gap_to_winner_ms);
+}
+function formatLiveRaceLeaderGap(row){
+  const laps=Number(row?.laps_behind);
+  if(Number.isFinite(laps)&&laps>0)return `+${laps} Lap${laps===1?"":"s"}`;
+  return formatInterval(row?.gap_to_leader_ms);
 }
 function positionDelta(value){
   const n=Number(value)||0;
@@ -1794,6 +1805,8 @@ export default function RaceWeekend(){
               const did=String(entry.driver_id);
               const selection=raceStrategy?.selections?.[did]||{};
               const tyres=tyresForTeam(gs,String(entry.team_id??""));
+              const dryLock=Boolean(raceStrategy?.rules_snapshot?.dry_specification_locked);
+              const nextTyres=legalTyresForChosenDrySpecification(tyres,selection.start_tyre_id,dryLock);
               const supplier=gs?.raceStrategyWorld?.teamSuppliers?.[String(entry.team_id??"")]||tyres[0]?.supplier||"—";
               return <div key={did} className="border border-white/10 rounded-xl bg-black/15 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1822,11 +1835,11 @@ export default function RaceWeekend(){
                       {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
                     </select>
                   </label>
-                  <label className="text-xs text-slate-400">Next tyre
+                  <label className="text-xs text-slate-400">{dryLock?"Next tyre (same dry compound)":"Next tyre"}
                     <div className="mt-1 flex items-center gap-2">
                       <TyreCompoundIcon compound={tyreName(tyres,selection.next_tyre_id||selection.start_tyre_id)} size={30}/>
                       <select className="min-w-0 flex-1 border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
-                        {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                        {nextTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                       </select>
                     </div>
                   </label>
@@ -1989,6 +2002,7 @@ export default function RaceWeekend(){
                       const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
                       if(!liveDriver)return null;
                       const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                      const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                       const strategy=raceStrategy?.selections?.[did]||{};
                       const workLocked=canonicalRedFlagLifecycle?.phase!=="suspended"||canonicalRedFlagLifecycle?.work_locked===true;
                       const damageComponents=liveDriver?.damage_state?.damaged_components||[];
@@ -2021,7 +2035,7 @@ export default function RaceWeekend(){
                               value={liveDriver?.tyre?.tyre_id||""}
                               onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
                             >
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                             </select>
                           </label>
                           <label className="grid gap-0.5">
@@ -2054,7 +2068,7 @@ export default function RaceWeekend(){
                               value={liveDriver?.next_tyre_id||strategy?.next_tyre_id||teamTyres[0]?.tyre_id||""}
                               onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,nextTyreId:e.target.value}))}
                             >
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                             </select>
                           </label>
                         </div>
@@ -2135,6 +2149,7 @@ export default function RaceWeekend(){
                         const did=String(entry?.driver_id||"");
                         const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
                         const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                      const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                         const strategy=raceStrategy?.selections?.[did]||{};
                         const workLocked=redFlagLifecycle?.phase!=="suspended"||redFlagLifecycle?.work_locked===true;
                         const damageComponents=liveDriver?.damage_state?.damaged_components||[];
@@ -2169,7 +2184,7 @@ export default function RaceWeekend(){
                                 value={liveDriver?.tyre?.tyre_id||""}
                                 onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
                               >
-                                {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                                {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                               </select>
                             </label>
                             <label className="grid gap-0.5">
@@ -2202,7 +2217,7 @@ export default function RaceWeekend(){
                                 value={strategy?.next_tyre_id||teamTyres[0]?.tyre_id||""}
                                 onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,nextTyreId:e.target.value}))}
                               >
-                                {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                                {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                               </select>
                             </label>
                             {strategy?.pit_plan==="one_stop"?<label className="grid gap-0.5">
@@ -2232,6 +2247,7 @@ export default function RaceWeekend(){
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
+                  const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                   const commands=usesCanonicalRaceRuntime
                     ?collectionRows(raceViewModel?.pending_commands).filter((row)=>String(row?.driverId??row?.driver_id??"")===did)
                     :(raceStrategy?.live_commands?.[did]||[]);
@@ -2325,11 +2341,11 @@ export default function RaceWeekend(){
                               }}
                             >
                               <option value="">Stay out</option>
-                              {teamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                               {hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
                               {hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
-                              {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
-                              {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
+                              {hasFrontWingDamage?allowedTeamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
+                              {hasRepairableDamage?allowedTeamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
                             {canYieldToTeammate?<button
                               type="button"
@@ -2582,7 +2598,7 @@ export default function RaceWeekend(){
                         <td className={"px-2 py-1.5 text-center font-semibold "+(gridGain>0?"text-emerald-400":gridGain<0?"text-rose-400":"text-slate-500")}>{positionDelta(gridGain)}</td>
                         <td className={"px-2 py-1.5 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-500")}>{positionDelta(lapGain)}</td>
                         <td className="px-2 py-1.5 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatLiveRaceLeaderGap(row)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
                         <td className="px-2 py-1.5 text-center"><TyreCompoundBadge compound={compound} compact/></td>
                         <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
@@ -2593,7 +2609,7 @@ export default function RaceWeekend(){
                       {liveTimingMode==="timing"&&<>
                         <td className={"px-2 py-2 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-600")}>{positionDelta(lapGain)}</td>
                         <td className="px-2 py-1.5 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatLiveRaceLeaderGap(row)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s1Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_1_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s2Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_2_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+(s3Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_3_ms)}</td>
@@ -2812,9 +2828,9 @@ export default function RaceWeekend(){
                   const isWinner=pos===1;
                   const gap=isWinner
                     ?formatRaceTime(row?.total_time_ms)
-                    :Number.isFinite(Number(row?.gap_to_winner_ms))
-                      ?formatInterval(row.gap_to_winner_ms)
-                      :(row?.retirement_reason||row?.status||"—");
+                    :row?.retired
+                      ?(row?.retirement_reason||row?.status||"DNF")
+                      :formatOfficialRaceGap(row);
                   return <div key={row.driver_id||pos} className={"relative rounded-xl border p-4 text-center "+(isWinner?"md:min-h-[205px] border-amber-400/40 bg-amber-400/[0.08]":"md:min-h-[175px] border-white/10 bg-[#171d27]")}>
                     <div className={"mx-auto mb-2 flex items-center justify-center rounded-full font-black "+(isWinner?"h-9 w-9 bg-amber-300 text-slate-950":"h-8 w-8 bg-white/10 text-slate-100")}>P{pos}</div>
                     <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size={isWinner?"h-20 w-20":"h-16 w-16"} className="mx-auto ring-white/15"/>
@@ -3019,9 +3035,7 @@ export default function RaceWeekend(){
                       ?formatRaceTime(row?.total_time_ms)
                       :row?.retired
                         ?(row?.retirement_reason||status)+(row?.incident_lap?" · L"+row.incident_lap:"")
-                        :Number.isFinite(Number(row?.gap_to_winner_ms))
-                          ?formatInterval(row.gap_to_winner_ms)
-                          :"—";
+                        :formatOfficialRaceGap(row);
                     const standing=driverStandingById.get(did);
                     const teamStanding=constructorStandingById.get(tid);
                     const resultRowTone=row?.retired||String(status).toUpperCase()==="DNF"

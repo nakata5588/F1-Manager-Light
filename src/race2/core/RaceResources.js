@@ -8,6 +8,7 @@
 import {
   RACE_PACE_MODES,
   genericTyresForYear,
+  legalTyresForChosenDrySpecification,
   optimalTyreTemperatureC,
   projectedTyreWearPerLap,
   tyreConditionEffects,
@@ -170,6 +171,9 @@ function initialFuel(input,inputCar){
 export function initialRaceResources(input,inputCar,driver){
   const fuel=initialFuel(input,inputCar);
   const tyre=initialTyre(input,inputCar,driver);
+  const drySpecificationLocked=Boolean(
+    inputCar?.resourceSetup?.strategy?.drySpecificationLocked&&tyre.category==="dry"
+  );
   const paceMode=String(inputCar?.resourceSetup?.strategy?.paceMode??"balanced");
   return {
     tyre,
@@ -178,7 +182,8 @@ export function initialRaceResources(input,inputCar,driver){
     resources:{
       paceMode:RACE_PACE_MODES[paceMode]?paceMode:"balanced",
       strategy:{
-        nextTyreId:inputCar?.resourceSetup?.strategy?.nextTyreId??null,
+        nextTyreId:drySpecificationLocked?tyre.tyre_id:inputCar?.resourceSetup?.strategy?.nextTyreId??null,
+        drySpecificationLocked,
         pitPlan:inputCar?.resourceSetup?.strategy?.pitPlan??null,
         plannedStopLap:finite(inputCar?.resourceSetup?.strategy?.plannedStopLap,null),
         aiControlled:inputCar?.resourceSetup?.strategy?.aiControlled!==false,
@@ -186,7 +191,10 @@ export function initialRaceResources(input,inputCar,driver){
         tyreChangeRequested:true,
         refuelRequested:fuel.fuelStintPlanned,
       },
-      availableTyres:tyreOptionsFor(inputCar,finite(input?.year,input?.track?.year??1980))
+      availableTyres:legalTyresForChosenDrySpecification(
+        tyreOptionsFor(inputCar,finite(input?.year,input?.track?.year??1980)),
+        tyre.tyre_id,drySpecificationLocked
+      )
         .map((row)=>({
           tyre_id:String(row?.tyre_id??row?.id??""),
           supplier:row?.supplier??null,

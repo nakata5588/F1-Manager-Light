@@ -459,6 +459,15 @@ export function presentCanonicalRaceEvent(event,context={}){
   }
 
   if(type==="overtake_started"){
+    const passKind=text(payload?.passKind).toLowerCase();
+    if(passKind==="lapping"){
+      return presentation("Lapping",second?`${first} moves to lap ${second}`:
+        `${first} approaches backmarker traffic`,"battle","info");
+    }
+    if(passKind==="unlapping"){
+      return presentation("Unlapping",second?`${first} tries to unlap from ${second}`:
+        `${first} tries to regain a lap`,"battle","info");
+    }
     return presentation(
       "Battle",
       second?`${first} attacks ${second}`:`${first} starts an overtaking attempt`,
@@ -468,6 +477,15 @@ export function presentCanonicalRaceEvent(event,context={}){
   }
 
   if(type==="overtake_completed"){
+    const passKind=text(payload?.passKind).toLowerCase();
+    if(passKind==="lapping"){
+      return presentation("Lapping",second?`${first} laps ${second}`:
+        `${first} clears backmarker traffic`,"battle","info");
+    }
+    if(passKind==="unlapping"){
+      return presentation("Unlapping",second?`${first} unlaps from ${second}`:
+        `${first} regains a lap`,"battle","info");
+    }
     return presentation(
       "Overtake",
       second?`${first} passes ${second}`:`${first} completes the overtake`,

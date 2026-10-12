@@ -171,3 +171,22 @@ test("RW8.3B fixed-step dynamics remain deterministic",()=>{
   assert.equal(a.tick,120);
   assert.ok(a.cars[0].absoluteDistanceM>0);
 });
+
+test("distance-sensitive braking keeps approaching straight speed until the physically required braking zone",()=>{
+  const state=runningState({power:84,race:82,chassis:80,driver:83,corner:true});
+  const track={
+    ...state.track,
+    speedProfile:{...state.track.speedProfile,brakingModel:"distance_sensitive"},
+  };
+  const approaching={...state.cars[0],speedMs:280/3.6,speedKmh:280};
+  const earlier=raceTargetSpeedProfile({...state,track},{
+    ...approaching,distanceAlongLapM:300,
+  });
+  const near=raceTargetSpeedProfile({...state,track},{
+    ...approaching,distanceAlongLapM:480,
+  });
+  assert.ok(earlier.targetSpeedKmh>near.targetSpeedKmh+35,
+    "a car 200 m from a slow turn must not be held at the corner speed already");
+  assert.ok(near.targetSpeedKmh<earlier.targetSpeedKmh);
+  assert.ok(earlier.targetSpeedKmh<=earlier.straightTargetKmh);
+});

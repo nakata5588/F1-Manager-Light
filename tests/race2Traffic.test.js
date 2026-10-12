@@ -12,6 +12,7 @@ import {
   gridLaunchLateralOffsetM,
   nearestTrafficAhead,
   raceSlipstreamContext,
+  racePhysicalPassContext,
   raceTrafficContext,
 } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
@@ -380,4 +381,28 @@ test("RW14A Live and Fast retain identical slipstream telemetry and outcome",()=
     car(live.getState(),"C2").traffic.slipstreamTargetBonusKmh,
     car(fast,"C2").traffic.slipstreamTargetBonusKmh
   );
+});
+
+
+test("RW42 canonical pass context distinguishes race-position pass from lapping and unlapping",()=>{
+  const state={track:{lengthM:1000}};
+  const car=(absoluteDistanceM)=>({absoluteDistanceM});
+  assert.deepEqual(racePhysicalPassContext(state,car(1010),car(1002)),{
+    kind:"position",relativeLapOffset:0,
+  });
+  assert.deepEqual(racePhysicalPassContext(state,car(2010),car(1002)),{
+    kind:"lapping",relativeLapOffset:1,
+  });
+  assert.deepEqual(racePhysicalPassContext(state,car(1010),car(2002)),{
+    kind:"unlapping",relativeLapOffset:-1,
+  });
+  assert.deepEqual(racePhysicalPassContext(state,car(4010),car(1002)),{
+    kind:"lapping",relativeLapOffset:3,
+  });
+  assert.deepEqual(racePhysicalPassContext(state,car(1005),car(998)),{
+    kind:"position",relativeLapOffset:0,
+  },"crossing the start/finish line is not necessarily a lapping pass");
+  assert.deepEqual(racePhysicalPassContext({track:{}},car(1005),car(998)),{
+    kind:"unknown",relativeLapOffset:null,
+  },"invalid geometry must not manufacture a position pass");
 });
