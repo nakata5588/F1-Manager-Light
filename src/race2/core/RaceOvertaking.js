@@ -660,7 +660,10 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
     clamp(attacker?.effectiveCornerSeverity,0,1),
     clamp(defender?.effectiveCornerSeverity,0,1)
   );
-  if(cornerSeverity>0.82)return reject("corner_too_severe");
+  const opportunityPhase=trackOpportunityContext(attacker,defender).phase;
+  if(opportunityPhase==="corner"||opportunityPhase==="heavy_corner"){
+    return reject("corner_too_severe");
+  }
 
   const factors=raceOvertakeOpportunityFactors(state,attacker,defender,{
     gapM,
