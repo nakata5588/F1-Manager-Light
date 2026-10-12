@@ -557,6 +557,35 @@ test("RW32 local track phase rewards straights and penalizes committed corners",
   assert.ok(straight.probability>corner.probability+0.07);
 });
 
+test("RW53 gate permits braking phase and rejects corner phases",()=>{
+  const base=runningState({seed:"rw53-track-phase-gate"});
+  const patches={
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      effectiveCornerSeverity:.45,
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:50,speedKmh:180,
+      effectiveCornerSeverity:.45,
+    },
+  };
+  const braking=patchCars(base,patches);
+  assert.notEqual(
+    diagnoseRaceOvertakeGate(braking,car(braking,"C2")).reason,
+    "corner_too_severe",
+    "the existing braking phase remains eligible for the canonical attempt gates"
+  );
+
+  const corner=patchCars(braking,{
+    C1:{effectiveCornerSeverity:.46},
+    C2:{effectiveCornerSeverity:.46},
+  });
+  assert.equal(
+    diagnoseRaceOvertakeGate(corner,car(corner,"C2")).reason,
+    "corner_too_severe"
+  );
+});
+
 test("RW28 an active tow materially increases the chance of converting approach into battle",()=>{
   let state=runningState();
   state=patchCars(state,{
