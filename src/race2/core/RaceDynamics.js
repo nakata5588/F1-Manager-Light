@@ -146,18 +146,26 @@ export function raceTargetSpeedProfile(state,car){
   const controlPaceMultiplier=raceControlPaceMultiplier(state?.raceControlState?.mode);
   const teamOrderPaceMultiplier=raceTeamOrderPaceMultiplier(state,car);
   const battlePaceMultiplier=raceBattlePaceMultiplier(state,car);
-  const targetSpeedKmh=Math.max(
+  // Keep battle-independent pace separate from the actual battle-adjusted
+  // target. Overtaking diagnostics and opportunity checks use this value as
+  // the sustainable free-running pace; including battlePaceMultiplier here
+  // feeds the role bonus back into the evidence used to justify a pass.
+  const freeTargetSpeedKmh=Math.max(
     45,
     rawTargetSpeedKmh*
       finite(resourcePerformance?.paceMultiplier,1)*
       damageMultiplier*
       controlPaceMultiplier*
-      teamOrderPaceMultiplier*
-      battlePaceMultiplier
+      teamOrderPaceMultiplier
+  );
+  const targetSpeedKmh=Math.max(
+    45,
+    freeTargetSpeedKmh*battlePaceMultiplier
   );
 
   return {
     targetSpeedKmh:round(targetSpeedKmh,3),
+    freeTargetSpeedKmh:round(freeTargetSpeedKmh,3),
     rawTargetSpeedKmh:round(rawTargetSpeedKmh,3),
     straightTargetKmh:round(straightTarget,3),
     resourcePaceMultiplier:round(resourcePerformance?.paceMultiplier,6),
