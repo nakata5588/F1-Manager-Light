@@ -485,7 +485,7 @@ export function stepRaceState(state,{onStepDiagnostic=null,diagnosticSampleEvery
           timeMs:finite(event?.timeMs,null),
           carIds:[...(event?.carIds||[])],
           driverIds:[...(event?.driverIds||[])],
-          payload:{...(event?.payload||{})},
+          payload:JSON.parse(JSON.stringify(event?.payload||{})),
         })),
         bypassPairs:[...bypassPairs],
         preStepCars:raceStepDiagnosticCars(state?.cars),
