@@ -234,8 +234,8 @@ function battleSlipstreamState(){
       const attacker=car.carId==="C1";
       return {
         ...car,
-        absoluteDistanceM:attacker?100:130,
-        distanceAlongLapM:attacker?100:130,
+        absoluteDistanceM:attacker?100:145,
+        distanceAlongLapM:attacker?100:145,
         speedMs:attacker?50:48,
         speedKmh:(attacker?50:48)*3.6,
         battle:{
@@ -264,6 +264,7 @@ test("battle pace remains physical while free pace is used as separate telemetry
   const next=stepRaceState(state);
   const moved=next.cars.find(car=>car.carId==="C1");
   assert.equal(moved.traffic.slipstreamActive,true);
+  assert.equal(moved.traffic.limited,false);
   assert.ok(moved.traffic.slipstreamTargetBonusKmh>0);
   assert.ok(Math.abs(
     moved.targetSpeedKmh-
