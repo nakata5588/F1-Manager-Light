@@ -34,6 +34,10 @@ export const RACE_BATTLE_APPROACH_ABSOLUTE_MAX_MS=18000;
 // A completed pass must not cause an immediate reverse duel with the same
 // opponent. The restriction is pair-specific, not a global battle lockout.
 export const RACE_BATTLE_COMPLETED_PAIR_COOLDOWN_MS=15000;
+// Playable baseline: a completed pass cannot trigger a reverse duel until
+// the cars have actually separated beyond the normal close-fighting range.
+// Physical rearm replaces endless time-only rematches, not engine speed.
+export const RACE_BATTLE_REMATCH_REARM_GAP_M=45;
 export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
@@ -296,6 +300,7 @@ function clearBattle(car,{result=null,cooldownUntilMs=null}={}){
       cooldownUntilMs:cooldownUntilMs??finite(previous?.cooldownUntilMs,0),
       lastCompletedOpponentCarId:previous?.lastCompletedOpponentCarId??null,
       lastCompletedOpponentCooldownUntilMs:finite(previous?.lastCompletedOpponentCooldownUntilMs,0),
+      lastCompletedPairNeedsSeparation:previous?.lastCompletedPairNeedsSeparation===true,
     },
   };
 }
@@ -605,11 +610,50 @@ export function battleContactProbability(state,attacker,defender,{stepMs=100}={}
   return round(1-Math.pow(1-perSecond,dt),8);
 }
 
+// Pure rearm step: release the *pair-specific* lock after visible physical
+// separation, a pit exit/retirement, or a genuine lap-offset change. No visual
+// offset and no artificial speed is applied. Called by the one canonical
+// overtaking resolver for both live and fast scheduling.
+function rearmCompletedBattlePairs(state,cars){
+  const previous=state?.cars||[];
+  const byId=new Map(previous.map(car=>[String(car?.carId??""),car]));
+  const lengthM=Math.max(0,finite(state?.track?.lengthM,0));
+  const rearmed=new Set();
+  for(const car of previous){
+    if(car?.battle?.lastCompletedPairNeedsSeparation!==true)continue;
+    const rival=byId.get(String(car?.battle?.lastCompletedOpponentCarId??""));
+    if(!rival||!activeTrackCar(car)||!activeTrackCar(rival)){
+      rearmed.add(String(car?.carId??""));
+      continue;
+    }
+    if(lengthM<=0)continue;
+    const from=finite(car?.distanceAlongLapM,0);
+    const to=finite(rival?.distanceAlongLapM,0);
+    const forward=trackForwardGapM(state.track,from,to);
+    const wrappedSeparation=forward==null?0:Math.min(forward,lengthM-forward);
+    const absoluteSeparation=Math.abs(
+      finite(car?.absoluteDistanceM,0)-finite(rival?.absoluteDistanceM,0)
+    );
+    if(
+      wrappedSeparation>=RACE_BATTLE_REMATCH_REARM_GAP_M||
+      absoluteSeparation>=lengthM/2
+    )rearmed.add(String(car?.carId??""));
+  }
+  if(!rearmed.size)return cars;
+  return (cars||[]).map(car=>
+    rearmed.has(String(car?.carId??""))
+      ?{...car,battle:{...(car?.battle||{}),lastCompletedPairNeedsSeparation:false}}
+      :car
+  );
+}
+
 export function completedBattlePairCoolingDown(state,attacker,defender){
   const now=Math.max(0,finite(state?.simulationTimeMs,0));
   const recentPair=(a,b)=>
-    String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&
-    finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now;
+    String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&(
+      finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now||
+      a?.battle?.lastCompletedPairNeedsSeparation===true
+    );
   return recentPair(attacker,defender)||recentPair(defender,attacker);
 }
 
@@ -1047,6 +1091,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           ...(attacker?.battle||{}),
           lastCompletedOpponentCarId:String(defender?.carId??""),
           lastCompletedOpponentCooldownUntilMs:pairCooldownUntilMs,
+          lastCompletedPairNeedsSeparation:true,
         },
       };
       defender={
@@ -1055,6 +1100,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           ...(defender?.battle||{}),
           lastCompletedOpponentCarId:String(attacker?.carId??""),
           lastCompletedOpponentCooldownUntilMs:pairCooldownUntilMs,
+          lastCompletedPairNeedsSeparation:true,
         },
       };
       bypassPairs.add(pairKey);
@@ -1295,9 +1341,14 @@ export function resolveRaceOvertaking(state,proposedCars,{
   blockedPairs=null,
   blockedSectors=null,
 }={}){
-  const yieldingCars=resolveYieldingBattles(state,proposedCars);
-  const existing=resolveExistingBattles(state,yieldingCars,{stepMs,blockedSectors});
-  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{
+  // Both the previous and proposed canonical cars observe the same release.
+  // The single existing Race Core remains the only owner of pass events,
+  // classification and lane state.
+  const raceState={...state,cars:rearmCompletedBattlePairs(state,state?.cars||[])};
+  const nextCars=rearmCompletedBattlePairs(state,proposedCars);
+  const yieldingCars=resolveYieldingBattles(raceState,nextCars);
+  const existing=resolveExistingBattles(raceState,yieldingCars,{stepMs,blockedSectors});
+  const started=startNewBattles(raceState,existing.cars,existing.bypassPairs,{
     stepMs,
     blockedPairs,
     blockedSectors,

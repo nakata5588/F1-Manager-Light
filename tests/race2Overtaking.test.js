@@ -1406,10 +1406,51 @@ test("RW41 a completed pass blocks an immediate rematch but not other opponents"
   assert.equal(completedBattlePairCoolingDown(earlyState,defender,attacker),true);
   assert.equal(completedBattlePairCoolingDown(earlyState,attacker,{carId:"another-car"}),false,
     "cooldown cannot prevent battles against unrelated opponents");
-  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),false,
-    "same rivals may challenge each other after recovery");
+  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),true,
+    "elapsed time alone cannot rearm the same tightly grouped opponents");
+  assert.equal(attacker.battle.lastCompletedPairNeedsSeparation,true);
+  assert.equal(defender.battle.lastCompletedPairNeedsSeparation,true);
+
+  // After both rivals have genuinely separated on track, the single
+  // canonical resolver releases the pair lock. No extra simulation engine.
+  const separated=patchCars({...earlyState,simulationTimeMs:until+500},{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100},
+    C2:{absoluteDistanceM:170,distanceAlongLapM:170},
+  });
+  const released=resolveRaceOvertaking(separated,separated.cars,{stepMs:100});
+  assert.equal(car({cars:released.cars},"C2").battle.lastCompletedPairNeedsSeparation,false);
+  assert.equal(car({cars:released.cars},"C1").battle.lastCompletedPairNeedsSeparation,false);
+  const recovered={...separated,cars:released.cars};
+  assert.equal(completedBattlePairCoolingDown(
+    recovered,car(recovered,"C2"),car(recovered,"C1")),false,
+    "a real 70m separation re-arms the pair after the time cooldown");
+  assert.equal(completedBattlePairCoolingDown(
+    recovered,car(recovered,"C2"),{carId:"another-car"}),false,
+    "other rivals remain eligible while this pair is recovering");
 });
 
+
+test("Playable Race: a completed pass cannot ping-pong while the same pair remains in traffic range",()=>{
+  let state=runningState({seed:"playable-pair-physical-rearm"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:108,distanceAlongLapM:108,speedMs:46,speedKmh:165.6},
+  });
+  state=manualBattle(state,{expiresAtMs:5000});
+  const completed=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  const cooled={...state,simulationTimeMs:20_000,cars:completed.cars};
+  const close=patchCars(cooled,{
+    C1:{absoluteDistanceM:109,distanceAlongLapM:109,speedMs:50,speedKmh:180},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:49,speedKmh:176.4},
+  });
+  const attacker=car(close,"C1");
+  const defender=car(close,"C2");
+  assert.equal(completedBattlePairCoolingDown(close,attacker,defender),true);
+  assert.equal(diagnoseRaceOvertakeGate(close,attacker).reason,"recent_pair_cooldown");
+  const attempted=resolveRaceOvertaking(close,close.cars,{stepMs:100});
+  assert.ok(!attempted.events.some(event=>event.type==="overtake_started"));
+  assert.equal(car({cars:attempted.cars},"C1").battle.lastCompletedPairNeedsSeparation,true);
+});
 
 test("RW41 diagnostic uses the canonical attempt gates without mutating RaceState",()=>{
   let state=runningState({seed:"rw41-gate-audit"});
