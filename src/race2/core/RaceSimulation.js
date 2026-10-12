@@ -92,7 +92,7 @@ function advanceCar(state,car,stepMs){
     excludedCarIds:raceTeamOrderTrafficExclusions(state,car),
   });
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
-  const freeTargetSpeedKmh=finite(dynamics?.targetSpeedKmh,null);
+  const freeTargetSpeedKmh=finite(dynamics?.freeTargetSpeedKmh,finite(dynamics?.targetSpeedKmh,null));
   const slipstreamBonusKmh=Math.max(
     0,
     finite(trafficContext?.slipstream?.targetBonusKmh,0)
