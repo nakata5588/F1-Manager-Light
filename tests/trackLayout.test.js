@@ -111,13 +111,18 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
   }
 });
 
-test("Track 3.0 flags the three known anachronistic 1980 future-layout fallbacks",()=>{
+test("Track 3.0 flags the three anachronistic 1980 future-layout geometries still renderable",()=>{
   const futureFallbacks=[...new Set(TRACK_LAYOUT_ASSETS.map((layout)=>layout.track_id))]
     .map((trackId)=>resolveTrackLayout({trackId,year:1980}))
-    .filter((resolved)=>resolved.resolution==="future_fallback")
+    .filter((resolved)=>resolved.resolution==="future_fallback"&&resolved.geometry)
     .map((resolved)=>[resolved.layout.track_id,resolved.source_year])
     .sort(([a],[b])=>a.localeCompare(b));
   assert.deepEqual(futureFallbacks,[["tr_0041",2002],["tr_0067",2016],["tr_0088",2000]]);
+  // Albert Park 1996–2020 is an era-bound *layout* fallback, not renderable
+  // 1980 geometry; never mistake source-year discovery for on-track fidelity.
+  const albert1980=resolveTrackLayout({trackId:"tr_0019",year:1980});
+  assert.equal(albert1980.resolution,"future_fallback");
+  assert.equal(albert1980.geometry,null);
 });
 
 test("RW6 known later Hockenheim artwork is explicitly a future fallback in 1980",()=>{
