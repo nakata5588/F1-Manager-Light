@@ -85,6 +85,16 @@ function firstPositive(...values){
   }
   return null;
 }
+function lapLengthForHistoricalPeriod(trackPackage,year){
+  // One factual chronology per circuit. Display maps remain distinct from
+  // period-specific measured race lengths (without yearly geometry copies).
+  if(year==null)return null;
+  const periods=Array.isArray(trackPackage?.lap_length_periods)?trackPackage.lap_length_periods:[];
+  const row=periods.find((period)=>
+    Number(year)>=Number(period?.year_from)&&Number(year)<=Number(period?.year_to)
+  );
+  return positive(row?.lap_length_km,null);
+}
 function clonePoints(points){
   return (Array.isArray(points)?points:[])
     .filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])))
@@ -303,6 +313,10 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
 
   const lengthKm=firstPositive(
     metadata?.lap_length_km,
+    // Historic track-year facts take precedence over generic core_tracks
+    // and absent/stale lap_length_km snapshots. Explicit saved lengths in
+    // metres still take precedence below for running-race compatibility.
+    lapLengthForHistoricalPeriod(trackPackage,y),
     trackSnapshot?.lap_length_km,
     layout?.lap_length_km,
     trackPackage?.lap_length_km,
