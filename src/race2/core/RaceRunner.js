@@ -12,8 +12,8 @@ const finite=(value,fallback=0)=>{
   return Number.isFinite(parsed)?parsed:fallback;
 };
 
-export function runCanonicalSteps(state,steps=1){
-  return advanceRaceState(state,{steps});
+export function runCanonicalSteps(state,steps=1,options={}){
+  return advanceRaceState(state,{steps,...options});
 }
 
 /**
@@ -21,7 +21,7 @@ export function runCanonicalSteps(state,steps=1){
  * and converted into canonical fixed steps. The remainder is retained so the
  * result is independent of render/update chunk size.
  */
-export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
+export function createLiveRaceRunner(initialState,{accumulatorMs=0,onStepDiagnostic=null,diagnosticSampleEverySteps=1}={}){
   let state=initialState;
   let remainder=Math.max(0,finite(accumulatorMs,0));
 
@@ -43,7 +43,7 @@ export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
         let redFlagActivated=false;
         for(let index=0;index<steps;index+=1){
           const beforeMode=String(state?.raceControlState?.mode||"GREEN").toUpperCase();
-          state=runCanonicalSteps(state,1);
+          state=runCanonicalSteps(state,1,{onStepDiagnostic,diagnosticSampleEverySteps});
           consumed+=1;
           const afterMode=String(state?.raceControlState?.mode||"GREEN").toUpperCase();
           if(beforeMode!=="RED_FLAG"&&afterMode==="RED_FLAG"){
@@ -64,7 +64,7 @@ export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
       return state;
     },
     step(){
-      if(state&&state.status!=="finished")state=runCanonicalSteps(state,1);
+      if(state&&state.status!=="finished")state=runCanonicalSteps(state,1,{onStepDiagnostic,diagnosticSampleEverySteps});
       return state;
     },
     queueCommand(command){

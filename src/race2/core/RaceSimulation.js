@@ -261,7 +261,40 @@ function weatherAfterRedFlagRecovery(previous,row){
   };
 }
 
-export function stepRaceState(state){
+function raceStepDiagnosticCars(cars=[]){
+  return (cars||[]).map(car=>({
+    carId:car?.carId??null,
+    driverId:car?.driverId??null,
+    absoluteDistanceM:finite(car?.absoluteDistanceM,null),
+    distanceAlongLapM:finite(car?.distanceAlongLapM,null),
+    speedMs:finite(car?.speedMs,null),
+    speedKmh:finite(car?.speedKmh,null),
+    accelerationMs2:finite(car?.accelerationMs2,null),
+    targetSpeedKmh:finite(car?.targetSpeedKmh,null),
+    freeTargetSpeedKmh:finite(car?.freeTargetSpeedKmh,null),
+    lateralOffsetM:finite(car?.lateralOffsetM,null),
+    status:car?.status??null,
+    pitStatus:String(car?.pitState?.status??"track"),
+    battle:{
+      phase:String(car?.battle?.phase??"none"),
+      opponentCarId:car?.battle?.opponentCarId??null,
+      role:car?.battle?.role??null,
+      attemptId:car?.battle?.attemptId??null,
+      result:car?.battle?.result??null,
+    },
+    traffic:{
+      aheadCarId:car?.traffic?.aheadCarId??null,
+      gapM:finite(car?.traffic?.gapM,null),
+      targetSpeedKmh:finite(car?.traffic?.targetSpeedKmh,null),
+      slipstreamActive:Boolean(car?.traffic?.slipstreamActive),
+      slipstreamAheadCarId:car?.traffic?.slipstreamAheadCarId??null,
+      slipstreamTargetBonusKmh:finite(car?.traffic?.slipstreamTargetBonusKmh,0),
+      limited:Boolean(car?.traffic?.limited),
+    },
+  }));
+}
+
+export function stepRaceState(state,{onStepDiagnostic=null,diagnosticSampleEverySteps=1}={}){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
 
@@ -433,14 +466,44 @@ export function stepRaceState(state){
     events:[...(state?.events||[]),...generatedEvents],
     nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
   };
-  return {...next,...projectCanonicalRaceTiming(next)};
+  const projectedNext={...next,...projectCanonicalRaceTiming(next)};
+  if(typeof onStepDiagnostic==="function"){
+    const sampleEvery=Math.max(1,Math.floor(finite(diagnosticSampleEverySteps,1)));
+    const battleEvents=generatedEvents.filter(event=>
+      String(event?.type||"").startsWith("overtake_")||event?.type==="contact"
+    );
+    const tick=Math.max(0,Math.floor(finite(state?.tick,0)));
+    if(tick%sampleEvery===0||battleEvents.length>0){
+      onStepDiagnostic({
+        tick,
+        timeMs:Math.max(0,finite(state?.simulationTimeMs,0)),
+        nextTimeMs:Math.max(0,finite(projectedNext?.simulationTimeMs,0)),
+        sampled:tick%sampleEvery===0,
+        events:battleEvents.map(event=>({
+          type:event?.type??null,
+          tick:finite(event?.tick,null),
+          timeMs:finite(event?.timeMs,null),
+          carIds:[...(event?.carIds||[])],
+          driverIds:[...(event?.driverIds||[])],
+          payload:{...(event?.payload||{})},
+        })),
+        bypassPairs:[...bypassPairs],
+        preStepCars:raceStepDiagnosticCars(state?.cars),
+        afterMovementCars:raceStepDiagnosticCars(teamOrders.cars),
+        afterOvertakingCars:raceStepDiagnosticCars(overtaking.cars),
+        afterSpacingCars:raceStepDiagnosticCars(spacedCars),
+        finalCars:raceStepDiagnosticCars(projectedNext.cars),
+      });
+    }
+  }
+  return projectedNext;
 }
 
-export function advanceRaceState(state,{steps=1}={}){
+export function advanceRaceState(state,{steps=1,onStepDiagnostic=null,diagnosticSampleEverySteps=1}={}){
   let next=state;
   const count=Math.max(0,Math.floor(Number(steps)||0));
   for(let index=0;index<count;index+=1){
-    next=stepRaceState(next);
+    next=stepRaceState(next,{onStepDiagnostic,diagnosticSampleEverySteps});
     if(!next||next.status==="finished")break;
   }
   return next;
