@@ -44,4 +44,16 @@ jobs:
           cp canonical-data/public/data/seasons/2000/season.json public/data/seasons/2000/season.json
       - name: Run 22-car 58-lap RW race and extract battle events
         timeout-minutes: 23
-        run: node --test tests/rw40Season2000FullRace.real.test.js
+        env:
+          RW_BATTLE_TRACE_OUT: artifacts/rw51-2000-australia-position-pass-traces.json
+        run: |
+          mkdir -p artifacts
+          node --test tests/rw40Season2000FullRace.real.test.js
+      - name: Upload per-pair battle traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rw51-2000-australia-position-pass-traces
+          path: artifacts/rw51-2000-australia-position-pass-traces.json
+          if-no-files-found: ignore
+          retention-days: 14

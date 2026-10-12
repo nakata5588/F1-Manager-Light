@@ -190,3 +190,25 @@ test("distance-sensitive braking keeps approaching straight speed until the phys
   assert.ok(near.targetSpeedKmh<earlier.targetSpeedKmh);
   assert.ok(earlier.targetSpeedKmh<=earlier.straightTargetKmh);
 });
+
+test("opt-in step diagnostics are detached and preserve canonical simulation",()=>{
+  const state=runningState({power:84,race:82,chassis:80,driver:83,corner:true});
+  const expected=advanceRaceState(state,{steps:25});
+  let samples=0;
+  const actual=advanceRaceState(state,{
+    steps:25,
+    diagnosticSampleEverySteps:5,
+    onStepDiagnostic(record){
+      samples++;
+      assert.ok(record.preStepCars.length>0);
+      assert.ok(record.afterMovementCars.length>0);
+      assert.ok(record.afterOvertakingCars.length>0);
+      assert.ok(record.afterSpacingCars.length>0);
+      assert.ok(record.finalCars.length>0);
+      // Diagnostic objects contain detached scalars and cannot mutate RaceState.
+      record.finalCars[0].speedMs=-999;
+    },
+  });
+  assert.equal(samples,5);
+  assert.deepEqual(actual,expected);
+});

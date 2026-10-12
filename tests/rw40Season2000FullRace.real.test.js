@@ -139,7 +139,66 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.ok(finishers.length>0,"full-distance GP needs at least one classified finisher");
   assert.ok(finishers.some(c=>c.completedLaps===58),
     "at least one car must cross the complete race distance");
-  const live=createLiveRaceRunner(initial);
+  const pairTraceRows=(record,carIds)=>({
+    tick:record.tick,
+    timeMs:record.timeMs,
+    nextTimeMs:record.nextTimeMs,
+    sampled:record.sampled,
+    bypassPairs:record.bypassPairs.filter(key=>
+      carIds.every(carId=>String(key).split("|").includes(String(carId)))
+    ),
+    events:record.events.filter(event=>
+      (event.carIds||[]).some(carId=>carIds.includes(String(carId)))
+    ),
+    stages:{
+      preStep:record.preStepCars.filter(car=>carIds.includes(String(car.carId))),
+      afterMovement:record.afterMovementCars.filter(car=>carIds.includes(String(car.carId))),
+      afterOvertaking:record.afterOvertakingCars.filter(car=>carIds.includes(String(car.carId))),
+      afterSpacing:record.afterSpacingCars.filter(car=>carIds.includes(String(car.carId))),
+      final:record.finalCars.filter(car=>carIds.includes(String(car.carId))),
+    },
+  });
+  const priorBattleSamples=[];
+  const positionPassTraces=[];
+  const activePositionPassTraces=[];
+  const live=createLiveRaceRunner(initial,{
+    diagnosticSampleEverySteps:10,
+    onStepDiagnostic(record){
+      if(record.sampled){
+        for(let index=activePositionPassTraces.length-1;index>=0;index--){
+          const trace=activePositionPassTraces[index];
+          if(record.timeMs<=trace.endsAtMs){
+            trace.after.push(pairTraceRows(record,trace.carIds));
+          }else{
+            activePositionPassTraces.splice(index,1);
+          }
+        }
+      }
+      for(const event of record.events){
+        if(event.type!=="overtake_completed"||event.payload?.passKind!=="position")continue;
+        const carIds=(event.carIds||[]).map(String);
+        if(carIds.length!==2)continue;
+        const trace={
+          attemptId:String(event.payload?.attemptId??""),
+          carIds,
+          drivers:(event.driverIds||[]).map(String),
+          passEvent:event,
+          endsAtMs:Number(event.timeMs)+30_000,
+          before:priorBattleSamples
+            .filter(sample=>sample.timeMs>=Number(event.timeMs)-20_000)
+            .map(sample=>pairTraceRows(sample,carIds)),
+          passStep:pairTraceRows(record,carIds),
+          after:[],
+        };
+        positionPassTraces.push(trace);
+        activePositionPassTraces.push(trace);
+      }
+      if(record.sampled){
+        priorBattleSamples.push(record);
+        while(priorBattleSamples.length>20)priorBattleSamples.shift();
+      }
+    },
+  });
   // Classify completed on-track passes using physical absolute lap distance
   // at the event tick. Passing a lapped car is not a change of race position.
   // The half-lap proximity guard tolerates start/finish line crossings.
@@ -240,6 +299,26 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     }
   }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
+  const traceOutput=process.env.RW_BATTLE_TRACE_OUT;
+  if(traceOutput){
+    await fs.mkdir("artifacts",{recursive:true});
+    await fs.writeFile(traceOutput,JSON.stringify({
+      scenario:"2000 Australian GP",
+      sampleIntervalMs:1000,
+      beforeWindowMs:20_000,
+      afterWindowMs:30_000,
+      stages:["preStep","afterMovement","afterOvertaking","afterSpacing","final"],
+      positionPassTraces,
+    },null,2));
+  }
+  console.log("RW51_PAIR_TRACE_SUMMARY="+JSON.stringify({
+    passTraces:positionPassTraces.length,
+    withFullBeforeWindow:positionPassTraces.filter(trace=>trace.before.length>=18).length,
+    withFullAfterWindow:positionPassTraces.filter(trace=>trace.after.length>=28).length,
+    sampleIntervalMs:1000,
+    stages:["preStep","afterMovement","afterOvertaking","afterSpacing","final"],
+    artifactPath:traceOutput||null,
+  }));
   console.log("RW41_MID_RACE_GATE_DIAGNOSTIC="+JSON.stringify({
     scenario:"real 2000 Australia, same engine and seed, 2s samples of every on-track car",
     caveats:["pre-attempt reasons are prioritized by canonical gate order",
