@@ -1,5 +1,6 @@
 import { TRACK_LAYOUT_GEOMETRY } from "./trackLayoutGeometry.js";
 import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
+import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 
 const freezeGeometry=(geometry,quality)=>Object.freeze({
   ...geometry,
@@ -26,7 +27,8 @@ export const HISTORICAL_TRACK_GEOMETRY=Object.freeze({
     race_direction:ARGENTINA_1974_1981_F1TRACK.race_direction,
     start_finish_direction:ARGENTINA_1974_1981_F1TRACK.start_finish_direction,
     source_package:ARGENTINA_1974_1981_F1TRACK.package_id,
-  },"historical_verified")
+  },"historical_verified"),
+  tr_0019_1996_2020:freezeGeometry(ALBERT_PARK_1996_2020_F1TRACK.functional,"derived_provisional")
 });
 
 Object.assign(TRACK_LAYOUT_GEOMETRY,HISTORICAL_TRACK_GEOMETRY);

@@ -218,3 +218,37 @@ test("Albert Park provisional physical profile is layout-era-scoped; verified Ar
   assert.equal(historic.speedProfile.source,"verified_functional_geometry");
   assert.equal(historic.speedProfile.detailed,true);
 });
+
+test("Albert Park 2000 projects its layout into the canonical race state without replacing pace calibration",()=>{
+  const gs={
+    activeYear:2000,
+    coreTracks:[{track_id:"tr_0019",track_name:"Albert Park Grand Prix Circuit",lap_length_km:5.303}],
+  };
+  const model=buildTrackModel(gs,{
+    gp:{track_id:"tr_0019",year:2000,laps:58,gp_name:"Australian Grand Prix"},
+  });
+  assert.equal(model.lengthM,5303);
+  assert.equal(model.laps,58);
+  assert.equal(model.raceDirection,"clockwise");
+  assert.equal(model.geometry.source,"f1track_functional");
+  assert.equal(model.geometry.quality,"derived_provisional");
+  assert.ok(model.racingLine.points.length>model.geometry.sourcePointCount);
+  assert.equal(model.startFinish.progress,0);
+  assert.ok(trackPoseAtDistance(model,0));
+  assert.ok(trackPoseAtDistance(model,5303-1));
+  assert.equal(model.pitLane.available,true);
+  assert.ok(model.pitLane.entryM>model.sectors[1].endM);
+  assert.ok(model.pitLane.exitM<model.sectors[0].endM);
+  // No reinterpretation of stylized map curvature as 2000 physical speeds.
+  assert.equal(model.speedProfile.source,"historical_turn_reference_approximate");
+  assert.equal(model.speedProfile.provisional,true);
+  assert.equal(model.speedProfile.referenceCorners,16);
+});
+
+test("2022 Albert Park does not reuse the old 16-turn racing line",()=>{
+  const gs={activeYear:2022,coreTracks:[{track_id:"tr_0019",lap_length_km:5.278}]};
+  const model=buildTrackModel(gs,{gp:{track_id:"tr_0019",year:2022,laps:58}});
+  assert.equal(model.racingLine,null);
+  assert.equal(model.geometry.source,"none");
+  assert.equal(model.speedProfile.source,"neutral");
+});
