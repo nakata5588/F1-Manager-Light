@@ -1,6 +1,7 @@
 import { HISTORICAL_TRACK_PRESENTATION_FALLBACKS } from "./historicalTrackGeometry.js";
 import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
 import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
+import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -34,6 +35,31 @@ export const TRACK_LAYOUT_ASSETS = [
     "environment_contains_track_intel": BUENOS_AIRES_ENVIRONMENT.contains_track_intel,
     "track_intelligence_status": "historical_verified",
     "source_label": "Buenos Aires Circuit No. 15 — unified F1Track package with functional, minimap and procedural race-view layers"
+  },
+  {
+    "layout_id":"tr_0019_1996_2020",
+    "track_id":"tr_0019",
+    "label":"Albert Park — original 16-turn layout",
+    "track_package":ALBERT_PARK_1996_2020_F1TRACK,
+    "year_from":1996,
+    "year_to":2020,
+    "reference_year":2000,
+    "historical_status":"provisional",
+    "geometry_status":"derived_provisional",
+    // Unlike 1980 generic fallback assets, never show the old circuit for 2022+.
+    "geometry_exact_era_only":true,
+    "track_intelligence_status":"derived_provisional",
+    "lap_length_km":ALBERT_PARK_1996_2020_F1TRACK.lap_length_km,
+    "race_direction":ALBERT_PARK_1996_2020_F1TRACK.race_direction,
+    "start_finish_direction":ALBERT_PARK_1996_2020_F1TRACK.start_finish_direction,
+    "start_finish_progress":ALBERT_PARK_1996_2020_F1TRACK.intelligence.start_finish_progress,
+    "sector_boundaries":ALBERT_PARK_1996_2020_F1TRACK.intelligence.sector_boundaries,
+    "pit_entry_progress":ALBERT_PARK_1996_2020_F1TRACK.intelligence.pit_entry_progress,
+    "pit_exit_progress":ALBERT_PARK_1996_2020_F1TRACK.intelligence.pit_exit_progress,
+    "sector_colors":ALBERT_PARK_1996_2020_F1TRACK.intelligence.sector_colors,
+    "pit_lane_color":ALBERT_PARK_1996_2020_F1TRACK.intelligence.pit_lane_color,
+    "environment_view_box":ALBERT_PARK_1996_2020_F1TRACK.functional.view_box,
+    "source_label":"F1DB melbourne-1 (Jules Roy, CC BY 4.0), 1996–2019 vector map; visually derived, not surveyed GPS"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
