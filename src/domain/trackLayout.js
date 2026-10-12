@@ -104,6 +104,23 @@ function resolved(layout,resolution,requestedYear){
   };
 }
 
+// Historical lap-length FACTS are attached to the single canonical layout
+// family, never copied into one layout record per year. This function is
+// shared by Race Strategy and the canonical Race TrackModel.
+export function historicalTrackLapLengthKm(trackId,year){
+  const requestedYear=finiteYear(year);
+  if(requestedYear===null)return null;
+  const resolved=resolveTrackLayout({trackId,year:requestedYear});
+  if(!resolved.exact)return null;
+  const periods=resolved.track_package?.lap_length_periods;
+  if(!Array.isArray(periods))return null;
+  const entry=periods.find((row)=>
+    requestedYear>=Number(row?.year_from)&&requestedYear<=Number(row?.year_to)
+  );
+  const length=Number(entry?.lap_length_km);
+  return Number.isFinite(length)&&length>0?length:null;
+}
+
 export function trackRuntimeGeometry(resolvedTrack){
   const functional=resolvedTrack?.track_package?.functional;
   if(Array.isArray(functional?.points)&&functional.points.length>=3){
