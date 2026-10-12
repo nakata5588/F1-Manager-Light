@@ -9,7 +9,7 @@
 import { hashSeed } from "../../core/random.js";
 import { selectMechanicalFailureReason } from "../../domain/carReliability.js";
 import { damageFromIncident, mergeDamageStates } from "../../engine/CarDamageEngine.js";
-import { initialBattleState } from "./RaceOvertaking.js";
+import { initialBattleState } from "./RacePassingSimple.js";
 import { initialTrafficState } from "./RaceTraffic.js";
 
 const finite=(value,fallback=null)=>{

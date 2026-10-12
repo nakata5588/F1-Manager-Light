@@ -70,6 +70,43 @@ const cooling=(state,a,b)=>{
   return timed(a,b)||timed(b,a)||locked(a,b)||locked(b,a);
 };
 
+// One source for the small opportunity scoring calculation and diagnostics.
+export function raceOvertakeOpportunityFactors(state,a,b,{
+  gapM=12,closingSpeedMs=2,towStrength=0,
+}={}){
+  const diff=matchup(a,b);
+  const att=a?.performance?.driver||{},def=b?.performance?.driver||{};
+  const attackerCompound=n(a?.tyre?.grip_index,75),defenderCompound=n(b?.tyre?.grip_index,75);
+  const strategy=(c)=>String(c?.resources?.paceMode||"balanced")==="attack"?1:
+    String(c?.resources?.paceMode||"balanced")==="conserve"?-1:0;
+  const strategyEdge=strategy(a)-strategy(b);
+  const tyreWear=(n(a?.tyre?.condition,100)-n(b?.tyre?.condition,100))/100;
+  const damage=n(b?.damage?.pace_loss_s_per_lap)-n(a?.damage?.pace_loss_s_per_lap);
+  const grip=n(a?.tyre?.grip_multiplier,1)-n(b?.tyre?.grip_multiplier,1);
+  const contributions={
+    gap:clamp((20-gapM)/20,0,1)*0.08,
+    closing:clamp(closingSpeedMs/8,0,1)*0.13,
+    driver:clamp(diff.driverEdge/45,-1,1)*0.18,
+    car:clamp(diff.carEdge/45,-1,1)*0.11,
+    compound:clamp((attackerCompound-defenderCompound)/20,-1,1)*0.06,
+    tyre:clamp(grip/0.2,-1,1)*0.08,
+    tyreWear:clamp(tyreWear,-1,1)*0.07,
+    strategy:strategyEdge*0.07,
+    damage:clamp(damage/7,-1,1)*0.07,
+    tow:clamp(towStrength,0,1)*0.12,
+  };
+  const difficulty=clamp(n(state?.track?.traits?.overtakingDifficulty,50),0,100);
+  const probability=clamp((0.17+Object.values(contributions).reduce((sum,v)=>sum+v,0))*
+    (1.15-difficulty*0.007),0.02,0.78);
+  return {probability:round(probability),
+    driverEdge:diff.driverEdge,carEdge:diff.carEdge,
+    strategyEdge,tyreGripEdge:round(grip),tyreConditionEdge:round(tyreWear),
+    damageEdge:round(damage),attackerPace:String(a?.resources?.paceMode||"balanced"),
+    defenderPace:String(b?.resources?.paceMode||"balanced"),
+    contributions:Object.fromEntries(Object.entries(contributions).map(([k,v])=>[k,round(v)])),
+  };
+}
+
 function opportunity(state,a,occupied,sectors){
   const probe={attackerCarId:id(a),defenderCarId:null,gapM:null,
     closingPotentialMs:null,probability:null,eligible:false};
@@ -99,15 +136,11 @@ function opportunity(state,a,occupied,sectors){
   if(closing<0.7)return no("closing_below_gate");
   if(nearest.gapM>Math.min(20,Math.max(12,closing*10+5)))return no("distance_beyond_reachable");
   const diff=matchup(a,b);
-  const gripDiff=n(a?.tyre?.grip_multiplier,1)-n(b?.tyre?.grip_multiplier,1);
-  const strategy=(c)=>String(c?.resources?.paceMode||"balanced")==="attack"?1:
-    String(c?.resources?.paceMode||"balanced")==="conserve"?-1:0;
-  const strategyEdge=strategy(a)-strategy(b);
-  const difficulty=clamp(n(state?.track?.traits?.overtakingDifficulty,50),0,100);
-  const probability=clamp((0.17+clamp(closing/8,0,1)*0.13+
-    clamp(diff.edge/45,-1,1)*0.18+clamp(gripDiff/0.2,-1,1)*0.08+
-    strategyEdge*0.07+n(tow?.strength)*0.12)*
-    (1.15-difficulty*0.007),0.02,0.78);
+  const factors=raceOvertakeOpportunityFactors(state,a,b,{
+    gapM:nearest.gapM,closingSpeedMs:closing,towStrength:n(tow?.strength),
+  });
+  const strategyEdge=factors.strategyEdge;
+  const probability=factors.probability;
   probe.probability=round(probability);
   const roll=rand(state,"attempt:"+Math.floor(n(state?.simulationTimeMs)/1000)+":"+id(a)+":"+id(b));
   if(roll>=probability)return no("probability_roll");
@@ -261,3 +294,11 @@ export function resolveSimpleRacePassing(state,proposedCars,{
   }
   return {cars,events,bypassPairs};
 }
+
+export const diagnoseRaceOvertakeGate=diagnoseSimplePassGate;
+export const resolveRaceOvertaking=resolveSimpleRacePassing;
+export const overtakeAttemptProbability=(state,a,b,options={})=>
+  raceOvertakeOpportunityFactors(state,a,b,options).probability;
+export const battleContactProbability=()=>0;
+export const completedBattlePairCoolingDown=cooling;
+export const raceBattlePerformanceMatchup=matchup;

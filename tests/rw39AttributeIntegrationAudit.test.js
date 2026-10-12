@@ -4,7 +4,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 import { advanceRaceResources } from "../src/race2/core/RaceResources.js";
-import { raceOvertakeOpportunityFactors } from "../src/race2/core/RaceOvertaking.js";
+import { raceOvertakeOpportunityFactors } from "../src/race2/core/RacePassingSimple.js";
 
 const tyres=[
   {tyre_id:"hard",compound_name:"Hard",category:"dry",grip_index:72,wear_rate:0.014,warmup_time_s:2.8},

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState } from "../src/race2/core/RaceSimulation.js";
-import { resolveRaceOvertaking } from "../src/race2/core/RaceOvertaking.js";
+import { resolveRaceOvertaking } from "../src/race2/core/RacePassingSimple.js";
 
 // RW38-C regression: the battle launcher must not mistake skill advantage for
 // actual closing speed when real free-pace telemetry is already available.
