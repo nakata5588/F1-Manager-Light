@@ -146,6 +146,16 @@ export function raceTargetSpeedProfile(state,car){
   const controlPaceMultiplier=raceControlPaceMultiplier(state?.raceControlState?.mode);
   const teamOrderPaceMultiplier=raceTeamOrderPaceMultiplier(state,car);
   const battlePaceMultiplier=raceBattlePaceMultiplier(state,car);
+  const freeTargetSpeedKmh=Math.max(
+    45,
+    rawTargetSpeedKmh*
+      finite(resourcePerformance?.paceMultiplier,1)*
+      damageMultiplier*
+      controlPaceMultiplier*
+      teamOrderPaceMultiplier
+  );
+  // Keep the battle-adjusted target for physical acceleration. The free target
+  // is a separate signal used by overtake forecasting only.
   const targetSpeedKmh=Math.max(
     45,
     rawTargetSpeedKmh*
@@ -158,6 +168,7 @@ export function raceTargetSpeedProfile(state,car){
 
   return {
     targetSpeedKmh:round(targetSpeedKmh,3),
+    freeTargetSpeedKmh:round(freeTargetSpeedKmh,3),
     rawTargetSpeedKmh:round(rawTargetSpeedKmh,3),
     straightTargetKmh:round(straightTarget,3),
     resourcePaceMultiplier:round(resourcePerformance?.paceMultiplier,6),

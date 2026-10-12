@@ -190,3 +190,84 @@ test("distance-sensitive braking keeps approaching straight speed until the phys
   assert.ok(near.targetSpeedKmh<earlier.targetSpeedKmh);
   assert.ok(earlier.targetSpeedKmh<=earlier.straightTargetKmh);
 });
+
+function battleSlipstreamState(){
+  const base=input({power:80,race:80,chassis:80,driver:80});
+  const drivers=[
+    {
+      ...base.drivers[0],driverId:"D1",teamId:"T1",
+      performance:{raceScore:90,overtaking:100,defending:40},
+    },
+    {
+      ...base.drivers[0],driverId:"D2",teamId:"T2",
+      performance:{raceScore:60,overtaking:40,defending:50},
+    },
+  ];
+  const sourceCar=base.cars[0];
+  const cars=[
+    {
+      ...sourceCar,carId:"C1",driverId:"D1",teamId:"T1",
+      performance:{overall:90,qualifying:90,race:90,reliability:90,chassis:80,power:90},
+    },
+    {
+      ...sourceCar,carId:"C2",driverId:"D2",teamId:"T2",
+      performance:{overall:60,qualifying:60,race:60,reliability:90,chassis:60,power:60},
+    },
+  ];
+  const data={
+    ...base,
+    entries:[
+      {driverId:"D1",teamId:"T1",carId:"C1",status:"confirmed"},
+      {driverId:"D2",teamId:"T2",carId:"C2",status:"confirmed"},
+    ],
+    drivers,
+    cars,
+    startingGrid:[
+      {grid:1,driver_id:"D1",team_id:"T1"},
+      {grid:2,driver_id:"D2",team_id:"T2"},
+    ],
+  };
+  const started=startRaceState(createRaceState(data,{stepMs:100}));
+  return {
+    ...started,
+    cars:started.cars.map(car=>{
+      const attacker=car.carId==="C1";
+      return {
+        ...car,
+        absoluteDistanceM:attacker?100:130,
+        distanceAlongLapM:attacker?100:130,
+        speedMs:attacker?50:48,
+        speedKmh:(attacker?50:48)*3.6,
+        battle:{
+          ...(car.battle||{}),
+          phase:"approach",
+          opponentCarId:attacker?"C2":"C1",
+          role:attacker?"attacker":"defender",
+          side:attacker?1:-1,
+          attemptId:"rw52-slipstream-test",
+          startedTick:started.tick,
+          startedAtMs:started.simulationTimeMs,
+          expiresAtMs:started.simulationTimeMs+5000,
+        },
+      };
+    }),
+  };
+}
+
+test("battle pace remains physical while free pace is used as separate telemetry",()=>{
+  const state=battleSlipstreamState();
+  const attacker=state.cars.find(car=>car.carId==="C1");
+  const profile=raceDynamicsForCar(state,attacker);
+  assert.ok(profile.battlePaceMultiplier>1);
+  assert.ok(profile.targetSpeedKmh>profile.freeTargetSpeedKmh);
+
+  const next=stepRaceState(state);
+  const moved=next.cars.find(car=>car.carId==="C1");
+  assert.equal(moved.traffic.slipstreamActive,true);
+  assert.ok(moved.traffic.slipstreamTargetBonusKmh>0);
+  assert.ok(Math.abs(
+    moved.targetSpeedKmh-
+      (profile.targetSpeedKmh+moved.traffic.slipstreamTargetBonusKmh)
+  )<0.002);
+  assert.ok(Math.abs(moved.freeTargetSpeedKmh-profile.freeTargetSpeedKmh)<0.002);
+});
