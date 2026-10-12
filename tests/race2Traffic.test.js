@@ -250,7 +250,17 @@ test("RW8.5 a train preserves road order and physical minimum gaps over time",()
     C3:{absoluteDistanceM:84,distanceAlongLapM:84,speedMs:62,speedKmh:223.2},
   });
 
-  const next=advanceRaceState(state,{steps:150});
+  // This RW8.5 fixture verifies following/spacing, not race passing.
+  // Explicitly neutralize new overtake starts during the 15-second probe;
+  // the separate Race Passing tests exercise physical passes and reversals.
+  const trafficOnly={
+    ...state,
+    cars:state.cars.map(row=>({
+      ...row,
+      battle:{...row.battle,cooldownUntilMs:20_000},
+    })),
+  };
+  const next=advanceRaceState(trafficOnly,{steps:150});
   const [first,second,third]=["C1","C2","C3"].map((id)=>car(next,id));
 
   assert.ok(first.absoluteDistanceM>second.absoluteDistanceM);
