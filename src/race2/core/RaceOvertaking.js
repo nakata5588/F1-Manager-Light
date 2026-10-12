@@ -9,6 +9,7 @@
 import { hashSeed } from "../../core/random.js";
 import { trackForwardGapM } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
+import { raceAccelerationForTarget } from "./RaceDynamics.js";
 import {
   RACE_TRAFFIC_HARD_GAP_M,
   desiredTrafficGapM,
@@ -216,20 +217,33 @@ function overtakeClosingPotentialMs(state,attacker,defender){
       battle:{phase:"approach",role:"attacker",opponentCarId:defender?.carId},
     })
     :1;
-  const freeClosing=hasFreeTelemetry
-    ?(attackerAssisted*committedApproachMultiplier-defenderAssisted)/3.6
+  // RW54: do not turn a difference in eventual free targets directly into
+  // an instantaneous closing speed. Two cars accelerating below their pace
+  // ceilings may currently have identical, capability-limited acceleration.
+  // Project one second using the SAME canonical acceleration model that
+  // advances the cars. This is a forecast, never a movement override.
+  const projectedSpeedMs=(car,currentMs,targetKmh)=>{
+    const targetMs=Math.max(0,targetKmh/3.6);
+    const acceleration=raceAccelerationForTarget(state,car,targetKmh);
+    return clamp(
+      currentMs+acceleration,
+      Math.min(currentMs,targetMs),
+      Math.max(currentMs,targetMs)
+    );
+  };
+  const projectedClosing=hasFreeTelemetry
+    ?projectedSpeedMs(attacker,currentAttacker,attackerAssisted*committedApproachMultiplier)-
+      projectedSpeedMs(defender,currentDefender,defenderAssisted)
     :null;
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
     overtakingPerformancePotential(defender,{attacker:false});
   const performanceClosing=performanceDelta*0.070;
-  // Free targets already include driver/car pace, tyres, tyre wear, strategy,
-  // damage and battle racecraft. Using the additional performance estimate as
-  // a competing maximum when those targets exist can launch overtakes that the
-  // actual simulation cannot physically close (RW38 diagnosis).
-  // Retain the performance fallback only before valid free-speed telemetry.
+  // Keep the historical fallback only while speed-target telemetry is absent.
+  // Once both target speeds exist, this gate must reflect an actually
+  // attainable relative velocity, not a separate skill-derived speed bonus.
   return hasFreeTelemetry
-    ?Math.max(currentClosing,freeClosing)
+    ?projectedClosing
     :Math.max(currentClosing,performanceClosing);
 }
 

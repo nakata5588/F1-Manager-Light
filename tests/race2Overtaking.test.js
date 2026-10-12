@@ -311,11 +311,11 @@ test("RW31 driver attributes keep a clear 65/35 advantage over equivalent car in
   assert.ok(driverMatch.edge<carMatch.edge*2.05);
 });
 
-test("RW30 racecraft can create a battle window even when free-speed telemetry is equal",()=>{
+test("RW54 racecraft creates a window when physical acceleration can express the advantage",()=>{
   let strong=runningState();
   strong=patchCars(strong,{
     C1:{
-      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:50,speedKmh:180,
       freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
       performance:{
         car:{race:70,power:70,chassis:70},
@@ -323,7 +323,7 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
       },
     },
     C2:{
-      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:45,speedKmh:162,
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:50,speedKmh:180,
       freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
       performance:{
         car:{race:70,power:70,chassis:70},
@@ -352,6 +352,36 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
     const candidate={...neutral,tick:bucket*10,simulationTimeMs:bucket*1000};
     const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
     assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+});
+
+test("RW54 equal acceleration below the targets cannot manufacture instant racecraft closing",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:45,speedKmh:162,
+      freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:92,overtaking:97,defending:70,raceIntelligence:92,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+  for(let bucket=0;bucket<20;bucket+=1){
+    const candidate={...state,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const probe=diagnoseRaceOvertakeGate(candidate,car(candidate,"C2"));
+    assert.ok(Math.abs(probe.closingPotentialMs)<0.01,
+      "identical physical acceleration cannot instantly reach a free-target pace advantage");
+    const attempt=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
+    assert.ok(!attempt.events.some(event=>event.type==="overtake_started"));
   }
 });
 
