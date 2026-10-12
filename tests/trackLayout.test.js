@@ -510,3 +510,46 @@ test("Track 2.5 renderer LOD follows camera zoom",()=>{
   assert.equal(trackLodForZoom(4.5),"close");
   assert.equal(trackLodForZoom(10),"close");
 });
+
+test("Albert Park 2000 exposes a clockwise original-era centerline with the grid before T1",()=>{
+  const resolved=resolveTrackLayout({trackId:"tr_0019",year:2000});
+  const runtime=trackRuntimeGeometry(resolved);
+  const layout=resolved.layout;
+  assert.equal(resolved.resolution,"exact");
+  assert.equal(layout.year_from,1996);
+  assert.equal(layout.year_to,2020);
+  assert.equal(layout.race_direction,"clockwise");
+  assert.equal(runtime.source,"f1track_functional");
+  assert.equal(runtime.geometry.quality,"derived_provisional");
+  assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+  assert.ok(runtime.geometry.points.length>=160);
+  const points=runtime.geometry.points;
+  // Positive shoelace area in SVG's downward-pointing Y is clockwise.
+  const signedArea=points.reduce((total,p,i)=>{
+    const next=points[(i+1)%points.length];
+    return total+p[0]*next[1]-next[0]*p[1];
+  },0)/2;
+  assert.ok(signedArea>0,"car traversal follows the historically clockwise circuit");
+  assert.ok(points[1][0]<points[0][0]&&points[1][1]<points[0][1],
+    "cars leave start/finish on the north-westbound pit straight");
+  assert.equal(layout.start_finish_progress,0);
+  assert.ok(layout.pit_entry_progress>0.8);
+  assert.ok(layout.pit_exit_progress<0.10);
+  assert.ok(runtime.geometry.pit_lane_points.length>=10);
+  assert.deepEqual(resolved.geometry.points,runtime.geometry.points,
+    "legacy track view and canonical Race View use the same source");
+});
+
+test("Albert Park original-era geometry cannot silently appear on the reconfigured 2022 layout",()=>{
+  const year2020=resolveTrackLayout({trackId:"tr_0019",year:2020});
+  assert.equal(year2020.resolution,"exact");
+  assert.ok(trackRuntimeGeometry(year2020).geometry?.points.length>=160);
+  const year2022=resolveTrackLayout({trackId:"tr_0019",year:2022});
+  assert.equal(year2022.resolution,"past_fallback");
+  assert.equal(year2022.geometry,null);
+  assert.equal(year2022.track_package,null);
+  assert.equal(trackRuntimeGeometry(year2022).source,"none");
+  const year1955=resolveTrackLayout({trackId:"tr_0019",year:1955});
+  assert.equal(year1955.resolution,"future_fallback");
+  assert.equal(trackRuntimeGeometry(year1955).geometry,null);
+});
