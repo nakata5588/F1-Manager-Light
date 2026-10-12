@@ -471,6 +471,20 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     [row.driverId,row.defenderId].map(String).sort().join("|")
   );
   const positionalPairCounts=Object.values(positionalPassesByPair);
+
+  // RW56 production guardrail — real historical same-seed 2000 GP.
+  // RW44 baseline: 42 physical position passes, 11 repeated position pairs,
+  // maximum 3 passes for any pair. An experimental launch filter passed the
+  // canonical unit suite yet produced 226 passes and 22 reversals for one pair.
+  // These broad limits protect against that catastrophic feedback loop while
+  // retaining room to improve overtaking rates and circuit behaviour.
+  assert.ok(positionPasses.length>=20&&positionPasses.length<=80,
+    `position overtakes drifted outside stable real-GP envelope: ${positionPasses.length}`);
+  assert.ok(positionalPairCounts.filter(count=>count>1).length<=20,
+    "too many repeated same-lap position pairs in the real Australian GP");
+  assert.ok(Math.max(0,...positionalPairCounts)<=5,
+    "unphysical ping-pong: one same-lap driver pair repeatedly swaps places");
+
   const battleAudit={
     scenario:"real 2000 Australian Grand Prix",
     measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
