@@ -1,0 +1,114 @@
+name: One-time safe branch cleanup
+on:
+  push:
+    branches: ["chore/prune-unused-branches-20261012"]
+permissions:
+  contents: write
+concurrency:
+  group: safe-prune-20261012
+  cancel-in-progress: false
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SELF_REF: chore/prune-unused-branches-20261012
+      SELF_SHA: ${{ github.sha }}
+      MODE: preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit and prune eligible branches
+        run: |
+          mkdir -p artifacts
+          python3 - <<'PY'
+          import datetime as dt, json, os, subprocess, urllib.request, urllib.parse
+          from collections import defaultdict, Counter
+          from pathlib import Path
+          repo=os.environ["GH_REPO"]; mode=os.environ["MODE"]
+          selfref=os.environ["SELF_REF"]; selfsha=os.environ["SELF_SHA"]
+          base="https://api.github.com/repos/"+repo
+          headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"}
+          def api(path,method="GET"):
+              req=urllib.request.Request(base+path,headers=headers,method=method)
+              with urllib.request.urlopen(req,timeout=45) as r:
+                  data=r.read()
+                  return json.loads(data) if data else None
+          def pages(path):
+              rows=[]
+              for p in range(1,25):
+                  sep="&" if "?" in path else "?"
+                  x=api(path+sep+"per_page=100&page="+str(p))
+                  assert isinstance(x,list)
+                  rows+=x
+                  if len(x)<100:return rows
+              raise AssertionError("Too many pages")
+          def git(*args):
+              return subprocess.run(["git",*args],capture_output=True,text=True,check=True).stdout.strip()
+          branches=pages("/branches"); prs=pages("/pulls?state=all")
+          main=api("/git/ref/heads/main")["object"]["sha"]
+          assert api("/git/ref/heads/"+selfref)["object"]["sha"]==selfsha
+          git("fetch","--no-tags","--quiet","origin","+refs/heads/*:refs/remotes/origin/*")
+          assert git("rev-parse","refs/remotes/origin/main")==main
+          byhead=defaultdict(list); protected={"main","develop","gh-pages",selfref}
+          for p in prs:
+              h=p.get("head") or {}; n=h.get("ref")
+              if n and (h.get("repo") or {}).get("full_name")==repo:
+                  byhead[n].append(p)
+                  if p.get("state")=="open":protected.add(n)
+              if p.get("state")=="open":protected.add((p.get("base") or {}).get("ref"))
+          cutoff=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=30)
+          report=[]
+          for b in branches:
+              name=b["name"]; sha=b["commit"]["sha"]
+              row={"branch":name,"sha":sha,"action":"keep"}
+              matches=byhead.get(name,[])
+              if name in protected or name.startswith(("backup/","backup-","archive/","archive-")):
+                  row["why"]="protected/backup"
+              elif any(p["state"]=="open" for p in matches):
+                  row["why"]="open PR"
+              elif any(p["state"]=="closed" and (p.get("head") or {}).get("sha")==sha for p in matches):
+                  row.update(action="delete",why="closed PR with exact head SHA")
+              elif matches:
+                  row["why"]="PR head changed; preserve"
+              else:
+                  date=dt.datetime.fromisoformat(git("show","-s","--format=%cI",sha).replace("Z","+00:00"))
+                  ancestor=subprocess.run(["git","merge-base","--is-ancestor",sha,main]).returncode==0
+                  if ancestor and date<cutoff:
+                      row.update(action="delete",why="entirely merged to main, older than 30 days")
+                  else:
+                      row["why"]="recent or unique unmerged commits; preserve"
+              report.append(row)
+          chosen=[r for r in report if r["action"]=="delete"]
+          summary={"mode":mode,"main":main,"total":len(report),"delete":len(chosen),"keep":len(report)-len(chosen),"reasons":dict(Counter(r["why"] for r in report))}
+          Path("artifacts/branch-prune-manifest.json").write_text(json.dumps({"summary":summary,"branches":report},indent=2))
+          print("SUMMARY",json.dumps(summary),flush=True)
+          print("SELECTED_FIRST_40",json.dumps(chosen[:40]),flush=True)
+          if mode=="delete":
+              nowopen=pages("/pulls?state=open")
+              active={((p.get("head") or {}).get("ref")) for p in nowopen}|{((p.get("base") or {}).get("ref")) for p in nowopen}
+              assert api("/git/ref/heads/main")["object"]["sha"]==main,"main moved; abort"
+              deleted=[]; skipped=[]
+              for r in chosen:
+                  n=r["branch"]; enc=urllib.parse.quote(n,safe="/")
+                  try:
+                      if n in active or api("/git/ref/heads/"+enc)["object"]["sha"]!=r["sha"]:
+                          skipped.append(n);continue
+                      api("/git/refs/heads/"+enc,method="DELETE");deleted.append(n)
+                  except Exception as e: skipped.append({"branch":n,"error":str(e)})
+              Path("artifacts/branch-prune-results.json").write_text(json.dumps({"deleted":deleted,"skipped":skipped},indent=2))
+              print("RESULT",json.dumps({"deleted":len(deleted),"skipped":len(skipped)}),flush=True)
+              if api("/git/ref/heads/"+selfref)["object"]["sha"]==selfsha:
+                  api("/git/refs/heads/"+selfref,method="DELETE")
+                  print("DELETED_SELF",selfref,flush=True)
+          PY
+      - name: Upload cleanup audit manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-prune-audit
+          path: artifacts/branch-prune-*.json
+          if-no-files-found: ignore
+          retention-days: 30
