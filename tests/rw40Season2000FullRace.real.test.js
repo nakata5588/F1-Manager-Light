@@ -158,9 +158,32 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       final:record.finalCars.filter(car=>carIds.includes(String(car.carId))),
     },
   });
+  // RW55 read-only context: a battle opponent may not be the actual
+  // next road blocker. Capture that third car without changing RaceState.
+  const failureTraceRows=(record,carIds)=>{
+    const pair=pairTraceRows(record,carIds);
+    const neighborIds=new Set(pair.stages.final.flatMap(car=>[
+      car?.traffic?.aheadCarId,
+      car?.traffic?.slipstreamAheadCarId,
+    ].filter(Boolean).map(String)));
+    return {
+      ...pair,
+      neighborCars:record.finalCars
+        .filter(car=>neighborIds.has(String(car?.carId))&&!carIds.includes(String(car?.carId)))
+        .map(car=>({
+          carId:car.carId,driverId:car.driverId,
+          absoluteDistanceM:car.absoluteDistanceM,
+          speedMs:car.speedMs,
+          targetSpeedKmh:car.targetSpeedKmh,
+          traffic:car.traffic,
+        })),
+    };
+  };
   const priorBattleSamples=[];
   const positionPassTraces=[];
   const activePositionPassTraces=[];
+  const approachFailureTraces=[];
+  const activeApproachFailureTraces=[];
   const live=createLiveRaceRunner(initial,{
     diagnosticSampleEverySteps:10,
     onStepDiagnostic(record){
@@ -173,8 +196,35 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
             activePositionPassTraces.splice(index,1);
           }
         }
+        for(let index=activeApproachFailureTraces.length-1;index>=0;index--){
+          const trace=activeApproachFailureTraces[index];
+          if(record.timeMs<=trace.endsAtMs){
+            trace.after.push(failureTraceRows(record,trace.carIds));
+          }else{
+            activeApproachFailureTraces.splice(index,1);
+          }
+        }
       }
       for(const event of record.events){
+        if(event.type==="overtake_failed"&&event.payload?.reason==="approach_timeout"){
+          const carIds=(event.carIds||[]).map(String);
+          if(carIds.length===2){
+            const trace={
+              attemptId:String(event.payload?.attemptId??""),
+              carIds,
+              drivers:(event.driverIds||[]).map(String),
+              failureEvent:event,
+              endsAtMs:Number(event.timeMs)+8_000,
+              before:priorBattleSamples
+                .filter(sample=>sample.timeMs>=Number(event.timeMs)-8_000)
+                .map(sample=>failureTraceRows(sample,carIds)),
+              failureStep:failureTraceRows(record,carIds),
+              after:[],
+            };
+            approachFailureTraces.push(trace);
+            activeApproachFailureTraces.push(trace);
+          }
+        }
         if(event.type!=="overtake_completed"||event.payload?.passKind!=="position")continue;
         const carIds=(event.carIds||[]).map(String);
         if(carIds.length!==2)continue;
@@ -307,8 +357,11 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       sampleIntervalMs:1000,
       beforeWindowMs:20_000,
       afterWindowMs:30_000,
+      failureBeforeWindowMs:8_000,
+      failureAfterWindowMs:8_000,
       stages:["preStep","afterMovement","afterOvertaking","afterSpacing","final"],
       positionPassTraces,
+      approachFailureTraces,
     },null,2));
   }
   console.log("RW51_PAIR_TRACE_SUMMARY="+JSON.stringify({
@@ -317,6 +370,28 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     withFullAfterWindow:positionPassTraces.filter(trace=>trace.after.length>=28).length,
     sampleIntervalMs:1000,
     stages:["preStep","afterMovement","afterOvertaking","afterSpacing","final"],
+    artifactPath:traceOutput||null,
+  }));
+  const thirdCarAhead=(trace)=>{
+    const defender=trace.failureStep.stages.final
+      .find(car=>String(car?.carId)===String(trace.carIds[1]));
+    const aheadId=String(defender?.traffic?.aheadCarId??"");
+    return aheadId&&!trace.carIds.includes(aheadId)
+      ?{carId:aheadId,gapM:defender?.traffic?.gapM??null}
+      :null;
+  };
+  console.log("RW55_APPROACH_FAILURE_TRACE_SUMMARY="+JSON.stringify({
+    approachTimeoutTraces:approachFailureTraces.length,
+    failedWithNonPositiveClosing:approachFailureTraces.filter(trace=>
+      Number(trace.failureEvent.payload?.actualClosingMs??0)<=0
+    ).length,
+    withThirdCarAheadOfDefender:approachFailureTraces.filter(thirdCarAhead).length,
+    withThirdCarWithinTwoHardGaps:approachFailureTraces.filter(trace=>{
+      const blocker=thirdCarAhead(trace);
+      return blocker&&Number(blocker.gapM)<12;
+    }).length,
+    fullEightSecondLeadIn:approachFailureTraces.filter(trace=>trace.before.length>=7).length,
+    fullEightSecondFollowUp:approachFailureTraces.filter(trace=>trace.after.length>=7).length,
     artifactPath:traceOutput||null,
   }));
   console.log("RW41_MID_RACE_GATE_DIAGNOSTIC="+JSON.stringify({
