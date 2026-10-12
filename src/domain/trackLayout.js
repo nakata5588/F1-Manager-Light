@@ -89,11 +89,12 @@ export function resolveTrackLayout({trackId,year,layouts=TRACK_LAYOUT_ASSETS}={}
 }
 
 function resolved(layout,resolution,requestedYear){
-  const geometry=TRACK_LAYOUT_GEOMETRY[String(layout?.layout_id||"")]||null;
+  const geometryAllowed=!layout?.geometry_exact_era_only||resolution==="exact";
+  const geometry=geometryAllowed?(TRACK_LAYOUT_GEOMETRY[String(layout?.layout_id||"")]||null):null;
   return {
     layout,
     geometry,
-    track_package:trackPackageProfile(layout),
+    track_package:geometryAllowed?trackPackageProfile(layout):null,
     environment:trackEnvironmentProfile(layout),
     resolution,
     requested_year:requestedYear,
