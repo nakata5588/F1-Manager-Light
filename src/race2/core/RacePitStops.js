@@ -15,7 +15,7 @@ import {
 } from "../../domain/racePitModel.js";
 import { trackSectorAtDistance } from "../track/TrackModel.js";
 import { freshRaceTyre, raceTrackTempC } from "./RaceResources.js";
-import { initialBattleState } from "./RaceOvertaking.js";
+import { initialBattleState } from "./RacePassingSimple.js";
 import { initialTrafficState } from "./RaceTraffic.js";
 
 const finite=(value,fallback=null)=>{

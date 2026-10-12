@@ -20,7 +20,7 @@ import {
   gridLaunchLateralOffsetM,
   raceTrafficContext,
 } from "./RaceTraffic.js";
-import { resolveRaceOvertaking } from "./RaceOvertaking.js";
+import { resolveSimpleRacePassing as resolveRaceOvertaking } from "./RacePassingSimple.js";
 import { raceTeamOrderTrafficExclusions, resolveRaceTeamOrders } from "./RaceTeamOrders.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { applyAutomaticCanonicalRedFlagWork } from "./RaceRedFlagWork.js";
