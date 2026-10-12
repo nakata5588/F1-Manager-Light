@@ -481,8 +481,8 @@ export function trackIntelligenceProfile(layout){
   return {
     start_finish_progress:startFinish,
     sector_boundaries:boundaries,
-    pit_entry_progress:Number.isFinite(Number(layout?.pit_entry_progress))?normalize(layout.pit_entry_progress,null):null,
-    pit_exit_progress:Number.isFinite(Number(layout?.pit_exit_progress))?normalize(layout.pit_exit_progress,null):null,
+    pit_entry_progress:layout?.pit_entry_progress==null||layout.pit_entry_progress===""?null:normalize(layout.pit_entry_progress,null),
+    pit_exit_progress:layout?.pit_exit_progress==null||layout.pit_exit_progress===""?null:normalize(layout.pit_exit_progress,null),
     status:String(layout?.track_intelligence_status||"derived_provisional"),
   };
 }
