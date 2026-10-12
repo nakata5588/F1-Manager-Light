@@ -5,6 +5,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   eraStraightSpeedKmh,
+  raceAccelerationForTarget,
   raceDynamicsForCar,
   raceTargetSpeedProfile,
 } from "../src/race2/core/RaceDynamics.js";
@@ -266,9 +267,11 @@ test("battle pace remains physical while free pace is used as separate telemetry
   assert.equal(moved.traffic.slipstreamActive,true);
   assert.equal(moved.traffic.limited,false);
   assert.ok(moved.traffic.slipstreamTargetBonusKmh>0);
-  assert.ok(Math.abs(
-    moved.targetSpeedKmh-
-      (profile.targetSpeedKmh+moved.traffic.slipstreamTargetBonusKmh)
-  )<0.002);
+  const physicalAcceleration=raceAccelerationForTarget(
+    state,
+    attacker,
+    profile.targetSpeedKmh+moved.traffic.slipstreamTargetBonusKmh
+  );
+  assert.equal(moved.accelerationMs2,physicalAcceleration);
   assert.ok(Math.abs(moved.freeTargetSpeedKmh-profile.freeTargetSpeedKmh)<0.002);
 });
