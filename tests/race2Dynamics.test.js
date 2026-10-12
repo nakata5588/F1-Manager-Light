@@ -121,6 +121,49 @@ test("RW8.3B verified corner severity lowers target speed",()=>{
   assert.ok(corner.targetSpeedKmh<straight.targetSpeedKmh-100);
 });
 
+test("RW8.3B battle pace does not contaminate free-running target telemetry",()=>{
+  const state=runningState({power:90,race:90,chassis:90,driver:90});
+  const base=state.cars[0];
+  const attackerPerformance={
+    driver:{overtaking:98,defending:98,raceIntelligence:98,raceScore:98},
+    car:{power:98,chassis:98,race:98},
+  };
+  const defenderPerformance={
+    driver:{overtaking:40,defending:40,raceIntelligence:40,raceScore:40},
+    car:{power:40,chassis:40,race:40},
+  };
+  const defender={
+    ...base,
+    carId:"C2",
+    driverId:"D2",
+    teamId:"T2",
+    performance:defenderPerformance,
+  };
+  const freeCar={
+    ...base,
+    performance:attackerPerformance,
+    battle:{phase:"none",opponentCarId:null,role:null},
+  };
+  const battleCar={
+    ...freeCar,
+    battle:{phase:"approach",opponentCarId:"C2",role:"attacker"},
+  };
+  const freeState={...state,cars:[freeCar,defender]};
+  const battleState={...state,cars:[battleCar,defender]};
+  const free=raceDynamicsForCar(freeState,freeCar);
+  const inBattle=raceDynamicsForCar(battleState,battleCar);
+
+  assert.equal(free.freeTargetSpeedKmh,free.targetSpeedKmh);
+  assert.equal(inBattle.freeTargetSpeedKmh,free.freeTargetSpeedKmh);
+  assert.ok(inBattle.targetSpeedKmh>inBattle.freeTargetSpeedKmh);
+
+  const stepped=stepRaceState(battleState);
+  assert.equal(
+    stepped.cars.find((car)=>car.carId==="C1").freeTargetSpeedKmh,
+    inBattle.freeTargetSpeedKmh
+  );
+});
+
 test("RW8.3B braking starts before the corner through physical lookahead",()=>{
   let state=runningState({power:80,race:80,chassis:80,driver:80,corner:true});
   state=patchCar(state,{
