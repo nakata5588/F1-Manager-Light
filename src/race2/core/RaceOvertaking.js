@@ -656,12 +656,10 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
   probe.closingPotentialMs=round(closingPotentialMs,3);
 
-  const cornerSeverity=Math.max(
-    clamp(attacker?.effectiveCornerSeverity,0,1),
-    clamp(defender?.effectiveCornerSeverity,0,1)
-  );
+  const passContext=racePhysicalPassContext(state,attacker,defender);
   const opportunityPhase=trackOpportunityContext(attacker,defender).phase;
-  if(opportunityPhase==="corner"||opportunityPhase==="heavy_corner"){
+  if(passContext.kind==="position"&&
+    (opportunityPhase==="corner"||opportunityPhase==="heavy_corner")){
     return reject("corner_too_severe");
   }
 
