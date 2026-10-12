@@ -764,3 +764,23 @@ test("RW5.3E a sector-three retirement completes the lap but cannot execute a sa
   assert.equal(uncut.lap_times_ms.length,30,"hazard refresh must remain a full-race projection");
   assert.equal(uncut.projected_retirement,null);
 });
+
+test("Interlagos Race Strategy and canonical TrackModel share historical lap-length facts",()=>{
+  const core={track_id:"tr_0028",track_name:"Interlagos",lap_length_km:4.309,laps_default:71};
+  const cases=[
+    [1973,7.960],
+    [1980,7.873],
+    [1990,4.325],
+    [1997,4.292],
+    [2000,4.309],
+    [2024,4.309],
+  ];
+  for(const [year,expectedKm] of cases){
+    const gs={activeYear:year,coreTracks:[core]};
+    const actual=raceTrackProfile(gs,{track_id:"tr_0028",year,laps:71});
+    assert.equal(actual.track_id,"tr_0028");
+    assert.equal(actual.lap_length_km,expectedKm,
+      `Race Strategy ${year} must not use the generic 4.309km for every year`);
+    assert.equal(actual.race_distance_km,Number((71*expectedKm).toFixed(1)));
+  }
+});
