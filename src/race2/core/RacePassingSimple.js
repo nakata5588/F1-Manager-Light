@@ -168,13 +168,18 @@ function processExisting(state,proposed,stepMs,sectors){
     const oldSide=n(old?.battle?.side,1)||1;
     if(old.battle.phase==="yielding"){
       const direction=old.battle.result==="completed"?1:-1;
-      if(separation*direction>=RACE_TRAFFIC_HARD_GAP_M){
+      // Recover the normal traffic model within a bounded time. The old
+      // implementation refreshed the yielding deadline every 100 ms, keeping
+      // cars busy for entire stints when exactly 6 m of separation was never
+      // attained. Traffic spacing owns the hard longitudinal gap thereafter.
+      const deadline=n(old.battle.expiresAtMs,next+stepMs);
+      if(separation*direction>=RACE_TRAFFIC_HARD_GAP_M-1e-6||next>=deadline){
         a=clear(a,old.battle.result);b=clear(b,b.battle?.result);
       }else{
         a=phase(a,b,"attacker","yielding",oldSide,attempt,
-          n(old.battle.startedAtMs),next+stepMs,old.battle.result);
+          n(old.battle.startedAtMs),deadline,old.battle.result);
         b=phase(b,a,"defender","yielding",-oldSide,attempt,
-          n(old.battle.startedAtMs),next+stepMs,b.battle?.result);
+          n(old.battle.startedAtMs),deadline,b.battle?.result);
       }
       cars=set(set(cars,a),b);continue;
     }

@@ -88,6 +88,23 @@ test("position pass prevents reciprocal spam until a real pit-stint change",()=>
     ?{...c,pitState:{...c.pitState,stopSequence:1}}:c)};
   assert.notEqual(diagnoseSimplePassGate(pit,get(pit,"C1")).reason,"recent_pair_cooldown");
 });
+test("failed close-range yielding expires and hands longitudinal spacing back to RaceTraffic",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:101,distanceAlongLapM:101,speedMs:40,speedKmh:144},
+  }));
+  const yielding=patch(s,{
+    C1:{battle:{...get(s,"C1").battle,phase:"yielding",result:"defended",
+      expiresAtMs:100}},
+    C2:{battle:{...get(s,"C2").battle,phase:"yielding",result:"failed",
+      expiresAtMs:100}},
+  });
+  const output=resolveSimpleRacePassing(yielding,yielding.cars,{stepMs:100});
+  assert.equal(get({cars:output.cars},"C2").battle.phase,"none");
+  assert.equal(get({cars:output.cars},"C1").battle.phase,"none");
+  assert.equal(output.bypassPairs.size,0);
+});
+
 test("local yellow blocks new physical passing",()=>{
   const s=patch(state(),{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,sector:1,speedMs:45,
