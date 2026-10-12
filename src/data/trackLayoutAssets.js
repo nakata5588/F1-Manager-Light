@@ -2,6 +2,7 @@ import { HISTORICAL_TRACK_PRESENTATION_FALLBACKS } from "./historicalTrackGeomet
 import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
 import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
+import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -61,7 +62,51 @@ export const TRACK_LAYOUT_ASSETS = [
     "environment_view_box":ALBERT_PARK_1996_2020_F1TRACK.functional.view_box,
     "source_label":"F1DB melbourne-1 (Jules Roy, CC BY 4.0), 1996–2019 vector map; visually derived, not surveyed GPS"
   },
-  {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
+  // Interlagos keeps ONE track ID; only the large 1990 redesign creates a new line.
+  {
+    "layout_id":"tr_0028_long",
+    "track_id":"tr_0028",
+    "label":"Interlagos — original long Grand Prix circuit",
+    "track_package":INTERLAGOS_LONG_F1TRACK,
+    "year_from":1973,
+    "year_to":1989,
+    "reference_year":1980,
+    "geometry_exact_era_only":true,
+    "historical_status":"provisional",
+    "geometry_status":"derived_provisional",
+    "track_intelligence_status":"derived_provisional",
+    "lap_length_km":INTERLAGOS_LONG_F1TRACK.lap_length_km,
+    "race_direction":INTERLAGOS_LONG_F1TRACK.race_direction,
+    "start_finish_direction":INTERLAGOS_LONG_F1TRACK.start_finish_direction,
+    "start_finish_progress":INTERLAGOS_LONG_F1TRACK.intelligence.start_finish_progress,
+    "sector_boundaries":INTERLAGOS_LONG_F1TRACK.intelligence.sector_boundaries,
+    "pit_entry_progress":null,
+    "pit_exit_progress":null,
+    "environment_view_box":INTERLAGOS_LONG_F1TRACK.functional.view_box,
+    "source_label":"F1DB interlagos-1 (Jules Roy, CC BY 4.0), long GP circuit — illustrative, not surveyed GPS"
+  },
+  {
+    "layout_id":"tr_0028_short",
+    "track_id":"tr_0028",
+    "label":"Interlagos — short Grand Prix circuit",
+    "track_package":INTERLAGOS_SHORT_F1TRACK,
+    "year_from":1990,
+    "year_to":2099,
+    "reference_year":2000,
+    "geometry_exact_era_only":true,
+    "historical_status":"provisional",
+    "geometry_status":"derived_provisional",
+    "track_intelligence_status":"derived_provisional",
+    "lap_length_km":INTERLAGOS_SHORT_F1TRACK.lap_length_km,
+    "race_direction":INTERLAGOS_SHORT_F1TRACK.race_direction,
+    "start_finish_direction":INTERLAGOS_SHORT_F1TRACK.start_finish_direction,
+    "start_finish_progress":INTERLAGOS_SHORT_F1TRACK.intelligence.start_finish_progress,
+    "sector_boundaries":INTERLAGOS_SHORT_F1TRACK.intelligence.sector_boundaries,
+    "pit_entry_progress":null,
+    "pit_exit_progress":null,
+    "environment_view_box":INTERLAGOS_SHORT_F1TRACK.functional.view_box,
+    "source_label":"F1DB interlagos-2 (Jules Roy, CC BY 4.0), short GP circuit since 1990 — illustrative, not surveyed GPS"
+  },
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
   {"layout_id":"tr_0088_provisional","track_id":"tr_0088","label":"Long Beach","year_from":2000,"year_to":2000,"reference_year":2000,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2000 Circuit"},
   {"layout_id":"tr_0026_provisional","track_id":"tr_0026","label":"Zolder","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
