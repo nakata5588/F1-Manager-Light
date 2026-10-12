@@ -611,4 +611,6 @@ test("Interlagos 1990 cutover changes geometry, not the identity or result archi
   assert.equal(short.layout.race_direction,"counterclockwise");
   assert.equal(original.layout.pit_entry_progress,null);
   assert.equal(short.layout.pit_entry_progress,null);
+  assert.equal(trackIntelligenceProfile(original.layout).pit_entry_progress,null);
+  assert.equal(trackIntelligenceProfile(short.layout).pit_exit_progress,null);
 });
