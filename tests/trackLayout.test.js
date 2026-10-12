@@ -77,7 +77,7 @@ test("RW19 canonical Race View shares TrackModel geometry selection and only smo
 test("Track 3.0 1980 layout provenance baseline is explicit for every championship venue",()=>{
   const expected=new Map([
     ["tr_0018",["exact",1980,"historical_verified"]],
-    ["tr_0028",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0028",["exact",1980,"derived_provisional"]],
     ["tr_0067",["future_fallback",2016,"derived_provisional"]],
     ["tr_0088",["future_fallback",2000,"derived_provisional"]],
     ["tr_0026",["generic_fallback",null,"derived_provisional"]],
@@ -557,4 +557,60 @@ test("Albert Park original-era geometry cannot silently appear on the reconfigur
   const year1955=resolveTrackLayout({trackId:"tr_0019",year:1955});
   assert.equal(year1955.resolution,"future_fallback");
   assert.equal(trackRuntimeGeometry(year1955).geometry,null);
+});
+
+test("Interlagos uses a single track ID and exactly two historical shape families",()=>{
+  const layouts=TRACK_LAYOUT_ASSETS.filter((row)=>row.track_id==="tr_0028");
+  assert.deepEqual(layouts.map((row)=>row.layout_id),["tr_0028_long","tr_0028_short"]);
+  assert.deepEqual(layouts.map((row)=>[row.year_from,row.year_to]),[[1973,1989],[1990,2099]]);
+
+  const cases=[
+    [1973,"tr_0028_long"],
+    [1976,"tr_0028_long"],
+    [1979,"tr_0028_long"],
+    [1980,"tr_0028_long"],
+    [1990,"tr_0028_short"],
+    [1996,"tr_0028_short"],
+    [1999,"tr_0028_short"],
+    [2000,"tr_0028_short"],
+    [2024,"tr_0028_short"],
+    [2026,"tr_0028_short"],
+  ];
+  for(const [year,layoutId] of cases){
+    const resolved=resolveTrackLayout({trackId:"tr_0028",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.layout.layout_id,layoutId,String(year));
+    assert.equal(runtime.source,"f1track_functional",String(year));
+    assert.equal(runtime.geometry.quality,"derived_provisional",String(year));
+    assert.ok(runtime.geometry.points.length>=200,String(year));
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false,
+      "cartographic outline must never be treated as surveyed physics");
+    let twiceArea=0;
+    const points=runtime.geometry.points;
+    for(let i=0;i<points.length;i++){
+      const next=points[(i+1)%points.length];
+      twiceArea+=points[i][0]*next[1]-next[0]*points[i][1];
+    }
+    assert.ok(twiceArea<0,`${year} must use counter-clockwise track order`);
+    assert.deepEqual(resolved.geometry.points,points,
+      `${year} canonical and legacy views must use the same centerline`);
+  }
+  const before=resolveTrackLayout({trackId:"tr_0028",year:1960});
+  assert.equal(before.resolution,"future_fallback");
+  assert.equal(trackRuntimeGeometry(before).geometry,null,
+    "Interlagos F1 GP layout cannot silently be used for earlier decades");
+});
+
+test("Interlagos 1990 cutover changes geometry, not the identity or result archive",()=>{
+  const original=resolveTrackLayout({trackId:"tr_0028",year:1980});
+  const short=resolveTrackLayout({trackId:"tr_0028",year:2000});
+  assert.equal(original.layout.track_id,short.layout.track_id);
+  assert.notDeepEqual(trackRuntimeGeometry(original).geometry.points,trackRuntimeGeometry(short).geometry.points);
+  assert.equal(original.layout.race_direction,"counterclockwise");
+  assert.equal(short.layout.race_direction,"counterclockwise");
+  assert.equal(original.layout.pit_entry_progress,null);
+  assert.equal(short.layout.pit_entry_progress,null);
+  assert.equal(trackIntelligenceProfile(original.layout).pit_entry_progress,null);
+  assert.equal(trackIntelligenceProfile(short.layout).pit_exit_progress,null);
 });

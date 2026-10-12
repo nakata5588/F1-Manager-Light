@@ -6,6 +6,7 @@
 // source of truth and this engine will not overwrite it with historical outcomes.
 
 import { rngFor } from "../core/random.js";
+import { historicalTrackLapLengthKm } from "../domain/trackLayout.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { staffStrategyDecisionDelta } from "../domain/staffPerformance.js";
@@ -268,7 +269,10 @@ export function raceTrackProfile(gs,gp={}){
   })||{};
   const cores=Array.isArray(gs?.coreTracks)&&gs.coreTracks.length?gs.coreTracks:(gs?.dbCoreTracks||[]);
   const core=(cores||[]).find((row)=>String(row?.track_id??row?.id??"")===trackId)||{};
-  const lapKm=Math.max(1,num(layout?.lap_length_km,gp?.lap_length_km??core?.lap_length_km??4.5));
+  // Race Strategy and Race Simulation resolve historical circuit facts from
+  // the same source; core_tracks holds only the current generic lap length.
+  const historicalKm=historicalTrackLapLengthKm(trackId,year);
+  const lapKm=Math.max(1,num(layout?.lap_length_km,historicalKm??gp?.lap_length_km??core?.lap_length_km??4.5));
   const laps=Math.max(1,Math.round(num(layout?.laps,gp?.laps??(305/lapKm))));
   const pitLoss=Math.max(8,num(layout?.pit_lane_loss_s,gp?.pit_lane_loss_s??core?.pit_lane_loss_s??24));
   const tyreWear=clamp(num(core?.tyre_wear,50),0,100);

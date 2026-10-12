@@ -252,3 +252,55 @@ test("2022 Albert Park does not reuse the old 16-turn racing line",()=>{
   assert.equal(model.geometry.source,"none");
   assert.equal(model.speedProfile.source,"neutral");
 });
+
+test("Interlagos canonical lap lengths follow historical periods without per-year layout copies",()=>{
+  const core={track_id:"tr_0028",track_name:"Autodromo Jose Carlos Pace",lap_length_km:4.309};
+  const cases=[
+    [1973,7960,"tr_0028_long"],
+    [1977,7960,"tr_0028_long"],
+    [1979,7873,"tr_0028_long"],
+    [1980,7873,"tr_0028_long"],
+    [1990,4325,"tr_0028_short"],
+    [1995,4325,"tr_0028_short"],
+    [1996,4292,"tr_0028_short"],
+    [1998,4292,"tr_0028_short"],
+    [1999,4309,"tr_0028_short"],
+    [2000,4309,"tr_0028_short"],
+    [2024,4309,"tr_0028_short"],
+  ];
+  for(const [year,lengthM,layoutId] of cases){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},{
+      gp:{track_id:"tr_0028",year,laps:71},
+    });
+    assert.equal(model.lengthM,lengthM,`${year} must not inherit the 4309m generic track length`);
+    assert.equal(model.layoutId,layoutId,String(year));
+    assert.equal(model.trackId,"tr_0028");
+    assert.equal(model.raceDirection,"counterclockwise");
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.geometry.quality,"derived_provisional");
+    assert.ok(model.racingLine?.points?.length>200);
+    assert.ok(trackPoseAtDistance(model,0));
+    assert.ok(trackPoseAtDistance(model,lengthM-1));
+    assert.equal(model.speedProfile.source,"neutral",
+      "SVG-derived curvature is not a verified physical speed profile");
+    assert.equal(model.pitLane.available,false,
+      "do not invent historic Interlagos pit lane geometry");
+  }
+});
+
+test("Interlagos year-specific metadata and running-race meter snapshots remain authoritative",()=>{
+  const core={track_id:"tr_0028",lap_length_km:4.309};
+  const gs={
+    activeYear:1980,
+    coreTracks:[core],
+    trackLayoutByYear:[{track_id:"tr_0028",year_from:1980,year_to:1980,lap_length_km:7.873,laps:40}],
+  };
+  const model=buildTrackModel(gs,{gp:{track_id:"tr_0028",year:1980}});
+  assert.equal(model.lengthM,7873);
+  assert.equal(model.laps,40);
+  const saved=buildTrackModel(gs,{
+    gp:{track_id:"tr_0028",year:1980},
+    trackSnapshot:{track_id:"tr_0028",length_m:7860},
+  });
+  assert.equal(saved.lengthM,7860,"explicit running race metre lengths must survive reloads");
+});
