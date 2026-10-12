@@ -296,6 +296,7 @@ function clearBattle(car,{result=null,cooldownUntilMs=null}={}){
       cooldownUntilMs:cooldownUntilMs??finite(previous?.cooldownUntilMs,0),
       lastCompletedOpponentCarId:previous?.lastCompletedOpponentCarId??null,
       lastCompletedOpponentCooldownUntilMs:finite(previous?.lastCompletedOpponentCooldownUntilMs,0),
+      positionPassPairStints:previous?.positionPassPairStints??{},
     },
   };
 }
@@ -412,6 +413,7 @@ export function initialBattleState(){
     contactRiskPct:null,
     result:null,
     cooldownUntilMs:0,
+    positionPassPairStints:{},
   };
 }
 
@@ -610,7 +612,18 @@ export function completedBattlePairCoolingDown(state,attacker,defender){
   const recentPair=(a,b)=>
     String(a?.battle?.lastCompletedOpponentCarId??"")===String(b?.carId??"")&&
     finite(a?.battle?.lastCompletedOpponentCooldownUntilMs,0)>now;
-  return recentPair(attacker,defender)||recentPair(defender,attacker);
+  // A position pass establishes order custody for the current pair of
+  // stints. Do not permit the same two cars to repeatedly reverse places by
+  // toggling attacker/defender battle-speed multipliers. A real pit stop
+  // resets custody for the pair; other rivals remain completely independent.
+  const sameStints=(a,b)=>{
+    const record=a?.battle?.positionPassPairStints?.[String(b?.carId??"")];
+    return record&&
+      Number(record.ownStopSequence)===Math.max(0,finite(a?.pitState?.stopSequence,0))&&
+      Number(record.otherStopSequence)===Math.max(0,finite(b?.pitState?.stopSequence,0));
+  };
+  return recentPair(attacker,defender)||recentPair(defender,attacker)||
+    Boolean(sameStints(attacker,defender)||sameStints(defender,attacker));
 }
 
 function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagnostic=null}={}){
@@ -1016,6 +1029,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
     }
 
     if(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-9){
+      const physicalPass=racePhysicalPassContext(state,attacker,defender);
       const fullyClear=clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
       if(fullyClear){
         attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
@@ -1057,9 +1071,28 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
           lastCompletedOpponentCooldownUntilMs:pairCooldownUntilMs,
         },
       };
+      if(physicalPass.kind==="position"){
+        const aId=String(attacker?.carId??"");
+        const dId=String(defender?.carId??"");
+        const aSeq=Math.max(0,finite(attacker?.pitState?.stopSequence,0));
+        const dSeq=Math.max(0,finite(defender?.pitState?.stopSequence,0));
+        attacker={...attacker,battle:{
+          ...(attacker?.battle||{}),
+          positionPassPairStints:{
+            ...(attacker?.battle?.positionPassPairStints||{}),
+            [dId]:{ownStopSequence:aSeq,otherStopSequence:dSeq},
+          },
+        }};
+        defender={...defender,battle:{
+          ...(defender?.battle||{}),
+          positionPassPairStints:{
+            ...(defender?.battle?.positionPassPairStints||{}),
+            [aId]:{ownStopSequence:dSeq,otherStopSequence:aSeq},
+          },
+        }};
+      }
       bypassPairs.add(pairKey);
       cars=setCar(setCar(cars,attacker),defender);
-      const physicalPass=racePhysicalPassContext(state,attacker,defender);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
         attemptId,
         clearanceM:round(clearance,6),

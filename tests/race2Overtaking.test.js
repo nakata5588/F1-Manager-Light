@@ -1406,10 +1406,46 @@ test("RW41 a completed pass blocks an immediate rematch but not other opponents"
   assert.equal(completedBattlePairCoolingDown(earlyState,defender,attacker),true);
   assert.equal(completedBattlePairCoolingDown(earlyState,attacker,{carId:"another-car"}),false,
     "cooldown cannot prevent battles against unrelated opponents");
-  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),false,
-    "same rivals may challenge each other after recovery");
+  assert.equal(completedBattlePairCoolingDown({...earlyState,simulationTimeMs:until},attacker,defender),true,
+    "same position rivals cannot immediately reverse within one shared stint");
+  const stopped={...earlyState,simulationTimeMs:until+1,cars:earlyState.cars.map(row=>
+    row.carId==="C1"?{...row,pitState:{...row.pitState,stopSequence:1}}:row
+  )};
+  assert.equal(completedBattlePairCoolingDown(
+    stopped,car(stopped,"C2"),car(stopped,"C1")),false,
+    "a genuine pit stop resets pair eligibility");
+  assert.equal(completedBattlePairCoolingDown(
+    stopped,car(stopped,"C2"),{carId:"another-car"}),false,
+    "the lock must never block unrelated rivals");
 });
 
+
+test("RW57 pair custody survives intervening opponents but is scoped to each stint",()=>{
+  const state=runningState({seed:"rw57-stint-custody"});
+  const original=car(state,"C2");
+  const opponent=car(state,"C1");
+  const first={
+    ...original,
+    battle:{
+      ...initialBattleState(),
+      positionPassPairStints:{
+        C1:{ownStopSequence:0,otherStopSequence:0},
+      },
+    },
+  };
+  const second={...opponent,battle:initialBattleState()};
+  const late={...state,simulationTimeMs:90000,cars:[first,second]};
+  assert.equal(completedBattlePairCoolingDown(late,first,second),true);
+  assert.equal(completedBattlePairCoolingDown(late,first,{carId:"C3"}),false);
+  const newStint={
+    ...late,
+    cars:late.cars.map(c=>c.carId==="C2"
+      ?{...c,pitState:{...c.pitState,stopSequence:1}}
+      :c),
+  };
+  assert.equal(completedBattlePairCoolingDown(
+    newStint,car(newStint,"C2"),car(newStint,"C1")),false);
+});
 
 test("RW41 diagnostic uses the canonical attempt gates without mutating RaceState",()=>{
   let state=runningState({seed:"rw41-gate-audit"});
