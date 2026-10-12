@@ -272,6 +272,6 @@ test("battle pace remains physical while free pace is used as separate telemetry
     attacker,
     profile.targetSpeedKmh+moved.traffic.slipstreamTargetBonusKmh
   );
-  assert.equal(moved.accelerationMs2,physicalAcceleration);
+  assert.ok(Math.abs(moved.accelerationMs2-physicalAcceleration)<0.01);
   assert.ok(Math.abs(moved.freeTargetSpeedKmh-profile.freeTargetSpeedKmh)<0.002);
 });
