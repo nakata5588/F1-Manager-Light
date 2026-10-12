@@ -19,6 +19,7 @@ import {
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
 import { RACE_TRAFFIC_HARD_GAP_M, raceTrafficContext } from "../src/race2/core/RaceTraffic.js";
+import { forecastBattleClosing } from "../src/race2/core/RaceBattleForecast.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 
 function input({seed="rw8.6",laps=10,stepMs=100,overtakingDifficulty=50}={}){
@@ -162,6 +163,40 @@ function manualBattle(state,{
     }),
   };
 }
+
+test("RW56 physical forecast is deterministic, read-only and skips neutral track profiles",()=>{
+  const initial=runningState();
+  assert.equal(forecastBattleClosing(initial,car(initial,"C2"),car(initial,"C1")),null,
+    "neutral circuit has no credible physical sector lookahead");
+  const track={
+    ...initial.track,
+    speedProfile:{
+      source:"verified-test",
+      detailed:true,
+      brakingModel:"distance_sensitive",
+      sampleSpacingM:100,
+      samples:[
+        {distanceM:0,severity:0},{distanceM:100,severity:0},
+        {distanceM:200,severity:0.85},{distanceM:300,severity:0.9},
+        {distanceM:400,severity:0},{distanceM:500,severity:0},
+        {distanceM:600,severity:0.8},{distanceM:700,severity:0.8},
+        {distanceM:800,severity:0},{distanceM:900,severity:0},
+      ],
+    },
+  };
+  const state=patchCars({...initial,track},{
+    C1:{absoluteDistanceM:120,distanceAlongLapM:120,speedMs:50,speedKmh:180},
+    C2:{absoluteDistanceM:110,distanceAlongLapM:110,speedMs:51,speedKmh:183.6},
+  });
+  const previous=JSON.stringify(state);
+  const first=forecastBattleClosing(state,car(state,"C2"),car(state,"C1"));
+  const second=forecastBattleClosing(state,car(state,"C2"),car(state,"C1"));
+  assert.deepEqual(first,second);
+  assert.ok(Number.isFinite(first.projectedGainM));
+  assert.ok(Number.isFinite(first.finalClosingMs));
+  assert.equal(first.horizonS,6);
+  assert.equal(JSON.stringify(state),previous,"forecast must never mutate canonical race state");
+});
 
 test("RW28 RaceState starts battle-neutral while preserving physical grid lanes",()=>{
   const state=createRaceState(input());

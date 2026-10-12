@@ -7,6 +7,7 @@
 // from contact remain the responsibility of later Race Control integration.
 
 import { hashSeed } from "../../core/random.js";
+import { forecastBattleClosing } from "./RaceBattleForecast.js";
 import { trackForwardGapM } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
 import {
@@ -705,9 +706,18 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null,onDiagn
   );
   if(roll>=probability)return reject("probability_roll");
 
+  // RW56: only a clearly worsening physical forecast blocks a launch.
+  // A neutral track keeps RW44 behaviour. This is deliberately NOT a
+  // one-second hard speed gate (rejected RW54 experiment).
+  const forecast=forecastBattleClosing(state,attacker,defender);
+  if(forecast&&forecast.projectedGainM< -2&&forecast.finalClosingMs< -0.4){
+    return reject("projected_closing_reverses");
+  }
+
   onDiagnostic?.({...probe,eligible:true,reason:"eligible"});
   return {
     defender,
+    forecast,
     gapM,
     probability,
     roll,
@@ -1250,6 +1260,8 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       side,
       durationMs,
       closingPotentialMs:round(opportunity.closingPotentialMs,6),
+      forecastGainM:opportunity.forecast?.projectedGainM??null,
+      forecastFinalClosingMs:opportunity.forecast?.finalClosingMs??null,
       attemptRangeM:round(opportunity.attemptRangeM,6),
       trackDifficulty:round(opportunity.trackDifficulty,3),
       attackerDriverScore:matchup.attackerDriverScore,
