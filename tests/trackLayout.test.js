@@ -663,3 +663,18 @@ test("Buenos Aires 1961–1971 and post-1981 unrelated years do not reuse old ci
     assert.equal(trackRuntimeGeometry(result).geometry,null,String(year));
   }
 });
+
+test("Buenos Aires No.2 outline has no self-crossing joins from fragmented historical SVG",()=>{
+  const shape=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0018",year:1953})).geometry.points;
+  const oriented=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(let i=0;i<shape.length;i++){
+    const a=shape[i],b=shape[(i+1)%shape.length];
+    for(let j=i+2;j<shape.length;j++){
+      if(i===0&&j===shape.length-1)continue;
+      const c=shape[j],d=shape[(j+1)%shape.length];
+      const intersects=oriented(a,b,c)*oriented(a,b,d)<-1e-8
+        &&oriented(c,d,a)*oriented(c,d,b)<-1e-8;
+      assert.equal(intersects,false,`historical stroke join crossing ${i}/${j}`);
+    }
+  }
+});
