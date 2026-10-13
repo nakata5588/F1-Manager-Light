@@ -20,6 +20,10 @@ const event=(type,state,a,b,payload)=>({
   type,tick:n(state?.tick),timeMs:n(state?.simulationTimeMs),
   carIds:[id(a),id(b)],driverIds:[a?.driverId,b?.driverId],payload,
 });
+// The actual change of road order is physical at >= 1.5 m of clearance.
+// Cars must remain laterally separated while yielding until the canonical
+// hard 6 m traffic gap is restored. These are deliberately separate steps.
+export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
 const gap=(s,a,b)=>{
   const l=Math.max(1,n(s?.track?.lengthM,5000));
   const difference=n(a?.absoluteDistanceM)-n(b?.absoluteDistanceM);
@@ -180,6 +184,9 @@ function processExisting(state,proposed,stepMs,sectors){
           n(old.battle.startedAtMs),deadline,old.battle.result);
         b=phase(b,a,"defender","yielding",-oldSide,attempt,
           n(old.battle.startedAtMs),deadline,b.battle?.result);
+        // The lateral lane is still occupied; keep the physical pair
+        // excluded from same-lane traffic spacing until safely rejoined.
+        bypass.add(pair);
       }
       cars=set(set(cars,a),b);continue;
     }
@@ -191,11 +198,22 @@ function processExisting(state,proposed,stepMs,sectors){
       cars=set(set(cars,a),b);continue;
     }
     const delta=(separation-gap(state,old,opponent))/(Math.max(stepMs,1)/1000);
-    if(separation>=RACE_TRAFFIC_HARD_GAP_M){
+    if(separation>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M){
       const pass=racePhysicalPassContext(state,a,b);
+      const fullyClear=separation>=RACE_TRAFFIC_HARD_GAP_M-1e-6;
       const until=next+15000;
-      a=clear(a,"completed",next+500);
-      b=clear(b,"lost",next+500);
+      if(fullyClear){
+        a=clear(a,"completed",next+500);
+        b=clear(b,"lost",next+500);
+      }else{
+        // Record the official overtake once position is physically won,
+        // but retain the lateral lanes until the full clearance is reached.
+        // A fixed recovery deadline prevents the old indefinite-yield loop.
+        a=phase(a,b,"attacker","yielding",oldSide,attempt,
+          n(old.battle.startedAtMs),next+2000,"completed");
+        b=phase(b,a,"defender","yielding",-oldSide,attempt,
+          n(old.battle.startedAtMs),next+2000,"lost");
+      }
       a={...a,battle:{...a.battle,
         lastCompletedOpponentCarId:id(b),lastCompletedOpponentCooldownUntilMs:until}};
       b={...b,battle:{...b.battle,
@@ -213,7 +231,7 @@ function processExisting(state,proposed,stepMs,sectors){
       bypass.add(pair);
       events.push(event("overtake_completed",state,a,b,{
         attemptId:attempt,clearanceM:round(separation),actualClosingMs:round(delta),
-        fullyClear:true,passKind:pass.kind,relativeLapOffset:pass.relativeLapOffset,
+        fullyClear,passKind:pass.kind,relativeLapOffset:pass.relativeLapOffset,
         elapsedMs:round(next-n(old.battle.startedAtMs)),
       }));
       cars=set(set(cars,a),b);continue;

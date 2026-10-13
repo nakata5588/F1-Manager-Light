@@ -65,6 +65,39 @@ test("physical clearance, not a probability roll, completes a pass",()=>{
   assert.ok(pass.payload.clearanceM>=RACE_TRAFFIC_HARD_GAP_M);
   assert.equal(get({cars:r.cars},"C2").battle.result,"completed");
 });
+test("physically decisive pass below hard spacing completes while cars yield laterally",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:102,distanceAlongLapM:102,speedMs:42,speedKmh:151.2},
+  }));
+  const passed=resolveSimpleRacePassing(s,s.cars,{stepMs:100});
+  const completion=passed.events.find(e=>e.type==="overtake_completed");
+  assert.ok(completion);
+  assert.equal(completion.payload.fullyClear,false);
+  assert.equal(get({cars:passed.cars},"C2").battle.phase,"yielding");
+  assert.equal(get({cars:passed.cars},"C1").battle.phase,"yielding");
+  assert.equal(passed.bypassPairs.size,1);
+  assert.ok(get({cars:passed.cars},"C2").lateralOffsetM!==0);
+  const second={...s,cars:passed.cars,simulationTimeMs:100};
+  const stillYielding=resolveSimpleRacePassing(second,second.cars,{stepMs:100});
+  assert.equal(stillYielding.events.filter(e=>e.type==="overtake_completed").length,0,
+    "one physical crossing can produce only one official completion event");
+  assert.equal(stillYielding.bypassPairs.size,1);
+});
+
+test("partly-clear completion returns spacing to traffic after 2 second recovery",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:102,distanceAlongLapM:102,speedMs:42,speedKmh:151.2},
+  }));
+  const pass=resolveSimpleRacePassing(s,s.cars,{stepMs:100});
+  const after={...s,cars:pass.cars,simulationTimeMs:2100};
+  const recovered=resolveSimpleRacePassing(after,after.cars,{stepMs:100});
+  assert.equal(get({cars:recovered.cars},"C2").battle.phase,"none");
+  assert.equal(get({cars:recovered.cars},"C1").battle.phase,"none");
+  assert.equal(recovered.bypassPairs.size,0);
+});
+
 test("not physically clear cannot complete, even with favourable racecraft",()=>{
   const s=manual(patch(state(),{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:41,speedKmh:147.6},
