@@ -16,7 +16,7 @@ import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
-import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
+import { summarizeRaceBehaviour,summarizeGreenFlagPassingWindows } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 import { diagnoseRaceOvertakeGate } from "../src/race2/core/RacePassingSimple.js";
 import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
@@ -291,12 +291,14 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       const bucket=Math.floor(Number(next.simulationTimeMs||0)/600_000);
       const mode=String(next.raceControlState?.mode||"GREEN");
       const window=lateRaceWindows[bucket]??={
-        startMinute:bucket*10,samples:0,controlModes:{},
+        startMinute:bucket*10,samples:0,controlModes:{},recommendedModes:{},
         activeCars:0,finishedCars:0,leadingLap:0,reasonCounts:{},
         nearestWithin25m:0,eligibleCandidates:0,positionCandidates:0,
       };
       window.samples++;
       window.controlModes[mode]=(window.controlModes[mode]||0)+1;
+      const recommendedMode=String(next.raceControlState?.recommendedMode||"GREEN");
+      window.recommendedModes[recommendedMode]=(window.recommendedModes[recommendedMode]||0)+1;
       window.leadingLap=Math.max(window.leadingLap,leadingLap);
       window.finishedCars+=next.cars.filter(car=>car.status==="finished").length;
       for(const car of next.cars){
@@ -467,6 +469,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     .map(e=>({
       minute:Number((Number(e.timeMs||0)/60000).toFixed(2)),
       from:e.payload?.from??null,to:e.payload?.to??null,
+      source:e.payload?.source??null,
       durationLaps:e.payload?.durationLaps??null,
       referenceLap:e.payload?.referenceLap??null,
     }));
@@ -474,6 +477,23 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     longestQuietWindow,
     raceEndMinute:Number((raceEndMs/60_000).toFixed(2)),
     firstAttemptMinute:times.length?Number((times[0]/60_000).toFixed(2)):null,
+    officialGreenFlagWindows:summarizeGreenFlagPassingWindows(fast),
+    finalSafetyAssessment:{
+      source:fast.raceControlState?.source??null,
+      recommendedMode:fast.raceControlState?.recommendedMode??null,
+      referenceLap:fast.raceControlState?.referenceLap??null,
+      minimumReleaseLap:fast.raceControlState?.minimumReleaseLap??null,
+      activatedReferenceLap:fast.raceControlState?.activatedReferenceLap??null,
+      score:fast.raceControlState?.assessment?.score??null,
+      reasonFactors:fast.raceControlState?.assessment?.dominant_factors??null,
+    },
+    finalTrackCondition:{
+      weatherState:fast.trackState?.weatherState??null,
+      standingWater:fast.trackState?.standingWater??null,
+      rainIntensity:fast.trackState?.rainIntensity??null,
+      raceability:fast.trackState?.raceability??null,
+      raceabilityBand:fast.trackState?.raceabilityBand??null,
+    },
     lastAttemptMinute:times.length?Number((times.at(-1)/60_000).toFixed(2)):null,
     finalControlMode:fast.raceControlState?.mode??null,
     raceControlTransitions,

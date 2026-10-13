@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   aggregateRaceBehaviour,
   summarizeRaceBehaviour,
+  summarizeGreenFlagPassingWindows,
 } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 
 function fixture(){
@@ -69,6 +70,41 @@ test("RW11A race behaviour audit summarizes canonical facts without mutation",()
   assert.equal(summary.pace.balanced,1);
   assert.equal(summary.pace.attack,1);
   assert.equal(summary.raceControl.transitions["GREEN->LOCAL_YELLOW"],1);
+});
+
+test("RW59 green-flag passing metric excludes sustained Safety Car periods",()=>{
+  const race={
+    simulationTimeMs:120_000,
+    events:[
+      {type:"overtake_started",timeMs:20_000},
+      {type:"race_control_changed",timeMs:30_000,payload:{from:"GREEN",to:"SAFETY_CAR"}},
+      {type:"race_control_changed",timeMs:90_000,payload:{from:"SAFETY_CAR",to:"GREEN"}},
+      {type:"overtake_started",timeMs:100_000},
+    ],
+  };
+  const before=structuredClone(race);
+  const audit=summarizeGreenFlagPassingWindows(race);
+  assert.deepEqual(race,before,"diagnostic must never mutate official race events");
+  assert.equal(audit.attempts,2);
+  assert.equal(audit.longestUnrestrictedWindow.durationMs,80_000);
+  assert.equal(audit.longestGreenFlagWindow.durationMs,20_000);
+  assert.equal(audit.greenFlagDurationMs,60_000);
+  assert.equal(audit.neutralisedDurationMs,60_000);
+  assert.equal(audit.finalMode,"GREEN");
+});
+
+test("RW59 terminal safety-car period is not a green-flag drought",()=>{
+  const audit=summarizeGreenFlagPassingWindows({
+    simulationTimeMs:120_000,
+    events:[
+      {type:"overtake_started",timeMs:20_000},
+      {type:"race_control_changed",timeMs:30_000,payload:{to:"SAFETY_CAR"}},
+    ],
+  });
+  assert.equal(audit.longestUnrestrictedWindow.durationMs,100_000);
+  assert.equal(audit.longestGreenFlagWindow.durationMs,20_000);
+  assert.equal(audit.finalMode,"SAFETY_CAR");
+  assert.equal(audit.neutralisedDurationMs,90_000);
 });
 
 test("RW11A aggregate exposes averages across deterministic audit runs",()=>{
