@@ -88,13 +88,36 @@ export function resolveTrackLayout({trackId,year,layouts=TRACK_LAYOUT_ASSETS}={}
   return resolved(nearest[0],"nearest_fallback",requestedYear);
 }
 
+// Reverse travel in a historically documented year without duplicating
+// a physical circuit layout. Keep start/finish at the same anchor (point 0).
+function reversedClosedPoints(points){
+  if(!Array.isArray(points)||points.length<3)return points;
+  return [points[0],...points.slice(1).reverse()];
+}
+
 function resolved(layout,resolution,requestedYear){
   const geometryAllowed=!layout?.geometry_exact_era_only||resolution==="exact";
-  const geometry=geometryAllowed?(TRACK_LAYOUT_GEOMETRY[String(layout?.layout_id||"")]||null):null;
+  const historicalReverse=resolution==="exact"&&Array.isArray(layout?.reverse_direction_years)
+    &&layout.reverse_direction_years.includes(requestedYear);
+  const sourceGeometry=geometryAllowed?(TRACK_LAYOUT_GEOMETRY[String(layout?.layout_id||"")]||null):null;
+  const sourcePackage=geometryAllowed?trackPackageProfile(layout):null;
+  const opposite=(direction)=>direction==="clockwise"?"counterclockwise"
+    :direction==="counterclockwise"?"clockwise":direction;
+  const geometry=historicalReverse&&sourceGeometry?{
+    ...sourceGeometry,points:reversedClosedPoints(sourceGeometry.points)
+  }:sourceGeometry;
+  const track_package=historicalReverse&&sourcePackage?{
+    ...sourcePackage,
+    race_direction:opposite(sourcePackage.race_direction),
+    functional:{...sourcePackage.functional,points:reversedClosedPoints(sourcePackage.functional?.points)}
+  }:sourcePackage;
+  const activeLayout=historicalReverse?{
+    ...layout,race_direction:opposite(layout.race_direction)
+  }:layout;
   return {
-    layout,
+    layout:activeLayout,
     geometry,
-    track_package:geometryAllowed?trackPackageProfile(layout):null,
+    track_package,
     environment:trackEnvironmentProfile(layout),
     resolution,
     requested_year:requestedYear,
