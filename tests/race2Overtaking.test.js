@@ -101,7 +101,7 @@ test("partly-clear completion returns spacing to traffic after 2 second recovery
 test("not physically clear cannot complete, even with favourable racecraft",()=>{
   const s=manual(patch(state(),{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:41,speedKmh:147.6},
-    C2:{absoluteDistanceM:102,distanceAlongLapM:102,speedMs:43,speedKmh:154.8},
+    C2:{absoluteDistanceM:101,distanceAlongLapM:101,speedMs:43,speedKmh:154.8},
   }));
   const r=resolveSimpleRacePassing(s,s.cars,{stepMs:100});
   assert.equal(r.events.some(e=>e.type==="overtake_completed"),false);
