@@ -4,6 +4,7 @@ import { BUENOS_AIRES_NO2_F1TRACK, BUENOS_AIRES_NO9_F1TRACK, BUENOS_AIRES_NO6_F1
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
 import { IMOLA_F1TRACK_FAMILIES } from "./tracks/tr_0047_imola.f1track.js";
+import { SILVERSTONE_F1TRACK_FAMILIES } from "./tracks/tr_0079_silverstone.f1track.js";
 
 const freezeGeometry=(geometry,quality)=>Object.freeze({
   ...geometry,
@@ -38,6 +39,9 @@ export const HISTORICAL_TRACK_GEOMETRY=Object.freeze({
   tr_0028_long:freezeGeometry(INTERLAGOS_LONG_F1TRACK.functional,"derived_provisional"),
   tr_0028_short:freezeGeometry(INTERLAGOS_SHORT_F1TRACK.functional,"derived_provisional"),
   ...Object.fromEntries(IMOLA_F1TRACK_FAMILIES.map((pkg)=>[
+    pkg.layout_id,freezeGeometry(pkg.functional,pkg.functional.quality)
+  ])),
+  ...Object.fromEntries(SILVERSTONE_F1TRACK_FAMILIES.map((pkg)=>[
     pkg.layout_id,freezeGeometry(pkg.functional,pkg.functional.quality)
   ]))
 });
