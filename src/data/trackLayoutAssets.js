@@ -1,6 +1,7 @@
 import { HISTORICAL_TRACK_PRESENTATION_FALLBACKS } from "./historicalTrackGeometry.js";
 import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
 import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
+import { BUENOS_AIRES_NO2_F1TRACK, BUENOS_AIRES_NO9_F1TRACK, BUENOS_AIRES_NO6_F1TRACK } from "./tracks/tr_0018_historical_eras.f1track.js";
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
 
@@ -8,9 +9,34 @@ const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional
 
 // User-supplied circuit artwork manifest. Historical ranges can be refined without changing callers.
 export const TRACK_LAYOUT_ASSETS = [
-  {
+  // Same physical venue (tr_0018); only real circuit configurations add geometry.
+  // No. 2 was used in reverse for the 1954 GP: same shape, alternate direction.
+  ...[BUENOS_AIRES_NO2_F1TRACK,BUENOS_AIRES_NO9_F1TRACK,BUENOS_AIRES_NO6_F1TRACK].map((pkg)=>({
+    layout_id:pkg.layout_id,
+    track_id:"tr_0018",
+    label:pkg.name,
+    track_package:pkg,
+    year_from:pkg.year_from,
+    year_to:pkg.year_to,
+    reference_year:pkg.reference_year,
+    geometry_exact_era_only:true,
+    historical_status:"provisional",
+    geometry_status:"derived_provisional",
+    track_intelligence_status:"derived_provisional",
+    lap_length_km:pkg.lap_length_km,
+    race_direction:pkg.race_direction,
+    start_finish_progress:pkg.intelligence.start_finish_progress,
+    sector_boundaries:pkg.intelligence.sector_boundaries,
+    pit_entry_progress:null,
+    pit_exit_progress:null,
+    environment_view_box:pkg.functional.view_box,
+    reverse_direction_years:pkg.layout_id==="tr_0018_no2"?[1954]:[],
+    source_label:"F1DB Buenos Aires historical map (Jules Roy CC BY 4.0); provisional display line, not GPS"
+  })),
+    {
     "layout_id": "tr_0018_provisional",
     "track_id": "tr_0018",
+    "geometry_exact_era_only":true,
     "label": "Buenos Aires — Circuit No. 15",
     "track_package": ARGENTINA_1974_1981_F1TRACK,
     "year_from": ARGENTINA_1974_1981_F1TRACK.year_from,

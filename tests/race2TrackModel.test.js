@@ -101,10 +101,10 @@ test("Track 4.0 derives semantic gameplay context from the canonical model",()=>
 
 test("RW8.3B historical fallback geometry never drives race physics",()=>{
   const model=buildTrackModel(argentinaState(),{
-    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1955},
+    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1965},
   });
 
-  assert.equal(model.year,1955);
+  assert.equal(model.year,1965);
   assert.equal(model.speedProfile.detailed,false);
   assert.equal(model.speedProfile.source,"neutral");
   assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
@@ -303,4 +303,52 @@ test("Interlagos year-specific metadata and running-race meter snapshots remain 
     trackSnapshot:{track_id:"tr_0028",length_m:7860},
   });
   assert.equal(saved.lengthM,7860,"explicit running race metre lengths must survive reloads");
+});
+
+test("Buenos Aires F1 historic year maps resolve from same tr_0018 identity, not core default 5.8km",()=>{
+  const gs={coreTracks:[{track_id:"tr_0018",lap_length_km:5.8,track_name:"Buenos Aires"}]};
+  const cases=[
+    [1953,3912,"tr_0018_no2","clockwise"],
+    [1954,3912,"tr_0018_no2","counterclockwise"],
+    [1955,3912,"tr_0018_no2","clockwise"],
+    [1958,3912,"tr_0018_no2","clockwise"],
+    [1960,3912,"tr_0018_no2","clockwise"],
+    [1972,3345,"tr_0018_no9","clockwise"],
+    [1973,3345,"tr_0018_no9","clockwise"],
+    [1974,5968,"tr_0018_provisional","clockwise"],
+    [1980,5968,"tr_0018_provisional","clockwise"],
+    [1995,4259,"tr_0018_no6_senna","clockwise"],
+    [1998,4259,"tr_0018_no6_senna","clockwise"],
+  ];
+  for(const [year,length,layout,direction] of cases){
+    const model=buildTrackModel({...gs,activeYear:year},{gp:{track_id:"tr_0018",year,laps:52}});
+    assert.equal(model.trackId,"tr_0018",String(year));
+    assert.equal(model.layoutId,layout,String(year));
+    assert.equal(model.raceDirection,direction,String(year));
+    assert.equal(model.lengthM,length,`historical race length for ${year}`);
+    assert.equal(model.resolution.exact,true,String(year));
+    assert.ok(model.racingLine?.points?.length>250,String(year));
+    assert.ok(trackPoseAtDistance(model,length-5),String(year));
+    if(year<1974||year>=1995){
+      assert.equal(model.geometry.quality,"derived_provisional",String(year));
+      assert.equal(model.speedProfile.source,"neutral",
+        "historical illustration must not change physical race speeds");
+      assert.equal(model.pitLane.available,false,
+        "unverified early historical pit lanes must not be invented");
+    }else{
+      assert.equal(model.geometry.quality,"historical_verified",String(year));
+      assert.equal(model.speedProfile.source,"verified_functional_geometry",String(year));
+      assert.equal(model.pitLane.available,true,String(year));
+    }
+  }
+});
+
+test("Buenos Aires outside known GP configurations never projects an anachronistic racing line",()=>{
+  const gs={coreTracks:[{track_id:"tr_0018",lap_length_km:5.8}]};
+  for(const year of [1950,1965,1970,1985,1990,1999,2024]){
+    const model=buildTrackModel({...gs,activeYear:year},{gp:{track_id:"tr_0018",year}});
+    assert.equal(model.geometry.source,"none",String(year));
+    assert.equal(model.racingLine,null,String(year));
+    assert.equal(model.speedProfile.source,"neutral",String(year));
+  }
 });

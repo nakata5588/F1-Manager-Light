@@ -784,3 +784,14 @@ test("Interlagos Race Strategy and canonical TrackModel share historical lap-len
     assert.equal(actual.race_distance_km,Number((71*expectedKm).toFixed(1)));
   }
 });
+
+test("Buenos Aires historical Race Strategy resolves real lap lengths from shared track metadata",()=>{
+  const core={track_id:"tr_0018",lap_length_km:5.8};
+  for(const [year,km] of [[1953,3.912],[1954,3.912],[1972,3.345],[1973,3.345],[1974,5.968],[1980,5.968],[1995,4.259],[1998,4.259]]){
+    const gs={activeYear:year,coreTracks:[core]};
+    const result=raceTrackProfile(gs,{track_id:"tr_0018",year,laps:60});
+    assert.equal(result.track_id,"tr_0018");
+    assert.equal(result.lap_length_km,km,String(year));
+    assert.equal(result.race_distance_km,Number((km*60).toFixed(1)),String(year));
+  }
+});
