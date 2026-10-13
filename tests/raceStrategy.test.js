@@ -811,3 +811,21 @@ test("Imola race strategy shares historic distance facts with TrackModel",()=>{
     assert.equal(result.race_distance_km,Number((km*60).toFixed(1)),String(year));
   }
 });
+
+test("Silverstone race strategy shares historic race-distance facts with TrackModel",()=>{
+  const core={track_id:"tr_0079",lap_length_km:5.141};
+  const cases=[
+    [1950,4.649],[1952,4.711],[1973,4.711],[1975,4.719],[1981,4.719],
+    [1987,4.778],[1991,5.226],[1994,5.057],[1996,5.072],
+    [1997,5.140],[1999,5.140],[2000,5.141],[2009,5.141],
+    [2010,5.901],[2011,5.891],[2024,5.891]
+  ];
+  for(const [year,km] of cases){
+    const profile=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0079",laps:60});
+    assert.equal(profile.track_id,"tr_0079");
+    assert.equal(profile.lap_length_km,km,String(year));
+    assert.equal(profile.race_distance_km,Number((km*60).toFixed(1)),String(year));
+  }
+});
+
