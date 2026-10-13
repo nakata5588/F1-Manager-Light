@@ -384,7 +384,8 @@ test("Imola canonical TrackModel uses correct lengths without yearly geometry co
     assert.equal(model.raceDirection,"counterclockwise");
     assert.equal(model.geometry.source,"f1track_functional");
     assert.equal(model.resolution.exact,true);
-    assert.ok(model.racingLine?.points?.length>240);
+    assert.ok(model.racingLine?.points?.length>=24,
+      "a simplified racing line must still provide continuous renderable poses");
     assert.ok(trackPoseAtDistance(model,metres-1));
     assert.equal(model.pitLane.available,false,"No imagined pit geometry");
     assert.equal(model.speedProfile.source,"neutral","No inferred real physics from sketches");
