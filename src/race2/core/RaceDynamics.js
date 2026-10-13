@@ -10,7 +10,7 @@ import {
 } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
 import { raceTeamOrderPaceMultiplier } from "./RaceTeamOrders.js";
-import { raceBattlePaceMultiplier } from "./RaceOvertaking.js";
+import { raceBattlePaceMultiplier } from "./RacePassingSimple.js";
 import { raceControlPaceMultiplier } from "./RaceControlLifecycle.js";
 
 const finite=(value,fallback=0)=>{

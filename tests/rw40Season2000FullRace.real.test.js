@@ -17,7 +17,7 @@ import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRun
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
-import { diagnoseRaceOvertakeGate } from "../src/race2/core/RaceOvertaking.js";
+import { diagnoseRaceOvertakeGate } from "../src/race2/core/RacePassingSimple.js";
 import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
 import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";

@@ -14,7 +14,7 @@ import {
   prepareRedFlagRestart,
 } from "../../engine/RedFlagLifecycleEngine.js";
 import { fastForwardRestartConditions } from "../../engine/RestartHysteresisEngine.js";
-import { initialBattleState } from "./RaceOvertaking.js";
+import { initialBattleState } from "./RacePassingSimple.js";
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;

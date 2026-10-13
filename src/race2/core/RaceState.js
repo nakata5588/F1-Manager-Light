@@ -9,7 +9,7 @@ import {
   initialGridLateralOffsetM,
   initialTrafficState,
 } from "./RaceTraffic.js";
-import { initialBattleState } from "./RaceOvertaking.js";
+import { initialBattleState } from "./RacePassingSimple.js";
 import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
 import { initialRaceConditions } from "./RaceConditions.js";
