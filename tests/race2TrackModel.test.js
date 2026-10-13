@@ -352,3 +352,51 @@ test("Buenos Aires outside known GP configurations never projects an anachronist
     assert.equal(model.speedProfile.source,"neutral",String(year));
   }
 });
+
+test("Imola canonical TrackModel uses correct lengths without yearly geometry copies",()=>{
+  const core={track_id:"tr_0047",track_name:"Imola",lap_length_km:4.909};
+  const cases=[
+    [1953,5018,"tr_0047_original"],
+    [1963,5018,"tr_0047_original"],
+    [1972,5018,"tr_0047_original"],
+    [1973,5122,"tr_0047_1973"],
+    [1974,5060,"tr_0047_1974_1994"],
+    [1978,5060,"tr_0047_1974_1994"],
+    [1979,5040,"tr_0047_1974_1994"],
+    [1980,5040,"tr_0047_1974_1994"],
+    [1981,5040,"tr_0047_1974_1994"],
+    [1994,5040,"tr_0047_1974_1994"],
+    [1995,4959,"tr_0047_1995_2006"],
+    [2000,4959,"tr_0047_1995_2006"],
+    [2006,4959,"tr_0047_1995_2006"],
+    [2008,4909,"tr_0047_modern"],
+    [2020,4909,"tr_0047_modern"],
+    [2024,4909,"tr_0047_modern"],
+  ];
+  for(const [year,metres,layout] of cases){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},{
+      gp:{year,track_id:"tr_0047",laps:62}
+    });
+    assert.equal(model.trackId,"tr_0047");
+    assert.equal(model.layoutId,layout,String(year));
+    assert.equal(model.lengthM,metres,String(year));
+    assert.equal(model.laps,62);
+    assert.equal(model.raceDirection,"counterclockwise");
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.resolution.exact,true);
+    assert.ok(model.racingLine?.points?.length>=24,
+      "a simplified racing line must still provide continuous renderable poses");
+    assert.ok(trackPoseAtDistance(model,metres-1));
+    assert.equal(model.pitLane.available,false,"No imagined pit geometry");
+    assert.equal(model.speedProfile.source,"neutral","No inferred real physics from sketches");
+  }
+});
+
+test("Imola 2007 construction era does not inherit another period's racing line",()=>{
+  const model=buildTrackModel({
+    activeYear:2007,coreTracks:[{track_id:"tr_0047",lap_length_km:4.909}]
+  },{gp:{track_id:"tr_0047",year:2007}});
+  assert.equal(model.racingLine,null);
+  assert.equal(model.geometry.source,"none");
+  assert.equal(model.speedProfile.source,"neutral");
+});
