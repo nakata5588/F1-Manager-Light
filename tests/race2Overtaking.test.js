@@ -151,6 +151,22 @@ test("local yellow blocks new physical passing",()=>{
     assert.equal(r.events.some(e=>e.type==="overtake_started"),false);
   }
 });
+test("RW59 diagnostic eligibility honours canonical Safety Car and local yellow restrictions",()=>{
+  const s=patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,sector:1,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:170},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,sector:1,
+      speedMs:48,speedKmh:172.8,freeTargetSpeedKmh:195},
+  });
+  const attacker=get(s,"C2");
+  const neutral=diagnoseSimplePassGate(s,attacker,{allowOvertaking:false});
+  assert.equal(neutral.reason,"global_neutralization");
+  assert.equal(neutral.eligible,false);
+  const yellow=diagnoseSimplePassGate(s,attacker,{blockedSectors:[1]});
+  assert.equal(yellow.reason,"local_yellow");
+  assert.equal(yellow.eligible,false);
+});
+
 test("new model is deterministic and pure when diagnosing",()=>{
   const s=patch(state(),{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,

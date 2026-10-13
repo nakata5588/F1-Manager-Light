@@ -18,6 +18,9 @@ import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/O
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 import { summarizeRaceBehaviour,summarizeGreenFlagPassingWindows } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 import { diagnoseRaceOvertakeGate } from "../src/race2/core/RacePassingSimple.js";
+import {
+  raceControlOvertakingAllowed,raceControlBlockedOvertakeSectors,
+} from "../src/race2/core/RaceControlLifecycle.js";
 import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
 import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";
@@ -306,7 +309,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
           String(car.pitState?.status??"track")!=="track")continue;
         interval.activeTrackCarSamples++;
         window.activeCars++;
-        const gate=diagnoseRaceOvertakeGate(next,car);
+        const gate=diagnoseRaceOvertakeGate(next,car,{
+          allowOvertaking:raceControlOvertakingAllowed(next),
+          blockedSectors:raceControlBlockedOvertakeSectors(next),
+        });
         interval.byGateReason[gate.reason]=(interval.byGateReason[gate.reason]||0)+1;
         window.reasonCounts[gate.reason]=(window.reasonCounts[gate.reason]||0)+1;
         if(gate.eligible)window.eligibleCandidates++;
