@@ -157,3 +157,59 @@ export function aggregateRaceBehaviour(summaries=[]){
     },
   };
 }
+
+
+// RW59: measure real green-flag gaps instead of treating a 20-minute Safety
+// Car tail as a passing drought. This only reads canonical event history.
+export function summarizeGreenFlagPassingWindows(state){
+  const raceEndMs=Math.max(0,finite(state?.simulationTimeMs,0));
+  const records=(state?.events||[])
+    .filter(e=>e?.type==="overtake_started"||e?.type==="race_control_changed")
+    .map((e,index)=>({event:e,index,time:Math.max(0,Math.min(raceEndMs,finite(e?.timeMs,0)))}))
+    .sort((a,b)=>a.time-b.time||a.index-b.index);
+  const attempts=records.filter(x=>x.event.type==="overtake_started").map(x=>x.time);
+  const absoluteBoundaries=[0,...attempts,raceEndMs];
+  let longestUnrestricted=null;
+  const register=(existing,start,end)=>{
+    const item={startMs:start,endMs:end,durationMs:Math.max(0,end-start)};
+    return !existing||item.durationMs>existing.durationMs?item:existing;
+  };
+  for(let i=1;i<absoluteBoundaries.length;i++){
+    longestUnrestricted=register(longestUnrestricted,absoluteBoundaries[i-1],absoluteBoundaries[i]);
+  }
+
+  let mode="GREEN",greenFlagStart=0,greenLastAttempt=0;
+  let greenFlagDurationMs=0;
+  let longestGreenFlag=null;
+  for(const {event,time} of records){
+    if(event.type==="overtake_started"){
+      if(mode==="GREEN"){
+        longestGreenFlag=register(longestGreenFlag,greenLastAttempt,time);
+        greenLastAttempt=time;
+      }
+      continue;
+    }
+    const nextMode=String(event?.payload?.to||mode).toUpperCase();
+    if(mode==="GREEN"&&nextMode!=="GREEN"){
+      greenFlagDurationMs+=time-greenFlagStart;
+      longestGreenFlag=register(longestGreenFlag,greenLastAttempt,time);
+    }
+    if(mode!=="GREEN"&&nextMode==="GREEN"){
+      greenFlagStart=time;
+      greenLastAttempt=time;
+    }
+    mode=nextMode;
+  }
+  if(mode==="GREEN"){
+    greenFlagDurationMs+=raceEndMs-greenFlagStart;
+    longestGreenFlag=register(longestGreenFlag,greenLastAttempt,raceEndMs);
+  }
+  return {
+    raceEndMs,attempts:attempts.length,
+    greenFlagDurationMs,
+    neutralisedDurationMs:Math.max(0,raceEndMs-greenFlagDurationMs),
+    longestUnrestrictedWindow:longestUnrestricted,
+    longestGreenFlagWindow:longestGreenFlag,
+    finalMode:mode,
+  };
+}

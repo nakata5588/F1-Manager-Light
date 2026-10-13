@@ -151,8 +151,18 @@ function opportunity(state,a,occupied,sectors){
   return {probe:{...probe,eligible:true,reason:"eligible"},
     pass:{a,b,gapM:nearest.gapM,closing,probability,roll,tow,diff,strategyEdge}};
 }
-export function diagnoseSimplePassGate(state,a){
-  return opportunity(state,a,new Set(),[]).probe;
+export function diagnoseSimplePassGate(state,a,{
+  allowOvertaking=true,blockedSectors=[],
+}={}){
+  // The canonical Race Simulation owns race-control enforcement. Reuse its
+  // decision in read-only diagnostics instead of reporting eligible candidates
+  // while the actual race is neutralised under VSC/Safety Car/Red Flag.
+  if(!allowOvertaking)return {
+    attackerCarId:id(a),defenderCarId:null,gapM:null,
+    closingPotentialMs:null,probability:null,eligible:false,
+    reason:"global_neutralization",
+  };
+  return opportunity(state,a,new Set(),blockedSectors).probe;
 }
 
 function processExisting(state,proposed,stepMs,sectors){

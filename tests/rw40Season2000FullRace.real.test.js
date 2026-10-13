@@ -16,8 +16,11 @@ import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
-import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
+import { summarizeRaceBehaviour,summarizeGreenFlagPassingWindows } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 import { diagnoseRaceOvertakeGate } from "../src/race2/core/RacePassingSimple.js";
+import {
+  raceControlOvertakingAllowed,raceControlBlockedOvertakeSectors,
+} from "../src/race2/core/RaceControlLifecycle.js";
 import { diagnoseRaceBattleContexts } from "../src/race2/diagnostics/OvertakingFunnelAudit.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
 import { raceResourcePerformance } from "../src/race2/core/RaceResources.js";
@@ -273,6 +276,10 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       completedPasses:0,
     }]
   ));
+  // RW59: diagnostic-only clock windows clarify whether the apparent long
+  // dry spell occurs under neutralisation or among still-racing opponents.
+  // Sampling never changes the canonical race simulation.
+  const lateRaceWindows={};
   let sampledMaxSpeedKmh=0;
   let priorEventCount=0;
   for(let tick=0;tick<fast.tick;tick++){
@@ -284,20 +291,41 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     // without changing any car, battle, probability roll or event.
     if(tick%20===0){
       interval.samples++;
+      const bucket=Math.floor(Number(next.simulationTimeMs||0)/600_000);
+      const mode=String(next.raceControlState?.mode||"GREEN");
+      const window=lateRaceWindows[bucket]??={
+        startMinute:bucket*10,samples:0,controlModes:{},recommendedModes:{},
+        activeCars:0,finishedCars:0,leadingLap:0,reasonCounts:{},
+        nearestWithin25m:0,eligibleCandidates:0,positionCandidates:0,
+      };
+      window.samples++;
+      window.controlModes[mode]=(window.controlModes[mode]||0)+1;
+      const recommendedMode=String(next.raceControlState?.recommendedMode||"GREEN");
+      window.recommendedModes[recommendedMode]=(window.recommendedModes[recommendedMode]||0)+1;
+      window.leadingLap=Math.max(window.leadingLap,leadingLap);
+      window.finishedCars+=next.cars.filter(car=>car.status==="finished").length;
       for(const car of next.cars){
         if(car.dnf||car.status==="dnf"||car.status==="finished"||
           String(car.pitState?.status??"track")!=="track")continue;
         interval.activeTrackCarSamples++;
-        const gate=diagnoseRaceOvertakeGate(next,car);
+        window.activeCars++;
+        const gate=diagnoseRaceOvertakeGate(next,car,{
+          allowOvertaking:raceControlOvertakingAllowed(next),
+          blockedSectors:raceControlBlockedOvertakeSectors(next),
+        });
         interval.byGateReason[gate.reason]=(interval.byGateReason[gate.reason]||0)+1;
+        window.reasonCounts[gate.reason]=(window.reasonCounts[gate.reason]||0)+1;
+        if(gate.eligible)window.eligibleCandidates++;
         if(gate.eligible)interval.potentialCandidates++;
         const near=nearestTrafficAhead(next,car,{ignoreBattleOpponent:false});
         if(!near?.car||Number(near.gapM)>25)continue;
         interval.nearestWithin25m++;
+        window.nearestWithin25m++;
         const directDistanceGap=Math.abs(Number(car.absoluteDistanceM)-Number(near.car.absoluteDistanceM));
         const sameDistance=directDistanceGap<Number(input.track.lengthM)*0.5;
         if(!sameDistance){interval.lappingWithin25m++;continue;}
         interval.sameDistanceWithin25m++;
+        if(gate.eligible)window.positionCandidates++;
         const attackerFree=Number(car.freeTargetSpeedKmh)||0;
         const defenderFree=Number(near.car.freeTargetSpeedKmh)||0;
         const freeAdvantage=attackerFree-defenderFree>=2;
@@ -435,6 +463,48 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const boundaries=[0,...times,raceEndMs];
   const gapsMs=boundaries.slice(1).map((value,index)=>Math.max(0,value-boundaries[index]));
   const quietestHours=Math.max(0,...gapsMs)/3_600_000;
+  const longestGapIndex=gapsMs.indexOf(Math.max(0,...gapsMs));
+  const longestQuietWindow={
+    fromMinute:Number((boundaries[longestGapIndex]/60_000).toFixed(2)),
+    toMinute:Number((boundaries[longestGapIndex+1]/60_000).toFixed(2)),
+    durationMinutes:Number((Math.max(0,...gapsMs)/60_000).toFixed(2)),
+    endsAtRaceFinish:longestGapIndex===gapsMs.length-1,
+  };
+  const raceControlTransitions=(fast.events||[])
+    .filter(e=>e.type==="race_control_changed")
+    .map(e=>({
+      minute:Number((Number(e.timeMs||0)/60000).toFixed(2)),
+      from:e.payload?.from??null,to:e.payload?.to??null,
+      source:e.payload?.source??null,
+      durationLaps:e.payload?.durationLaps??null,
+      referenceLap:e.payload?.referenceLap??null,
+    }));
+  console.log("RW59_LATE_RACE_OPPORTUNITY_AUDIT="+JSON.stringify({
+    longestQuietWindow,
+    raceEndMinute:Number((raceEndMs/60_000).toFixed(2)),
+    firstAttemptMinute:times.length?Number((times[0]/60_000).toFixed(2)):null,
+    officialGreenFlagWindows:summarizeGreenFlagPassingWindows(fast),
+    finalSafetyAssessment:{
+      source:fast.raceControlState?.source??null,
+      recommendedMode:fast.raceControlState?.recommendedMode??null,
+      referenceLap:fast.raceControlState?.referenceLap??null,
+      minimumReleaseLap:fast.raceControlState?.minimumReleaseLap??null,
+      activatedReferenceLap:fast.raceControlState?.activatedReferenceLap??null,
+      score:fast.raceControlState?.assessment?.score??null,
+      reasonFactors:fast.raceControlState?.assessment?.dominant_factors??null,
+    },
+    finalTrackCondition:{
+      weatherState:fast.trackState?.weatherState??null,
+      standingWater:fast.trackState?.standingWater??null,
+      rainIntensity:fast.trackState?.rainIntensity??null,
+      raceability:fast.trackState?.raceability??null,
+      raceabilityBand:fast.trackState?.raceabilityBand??null,
+    },
+    lastAttemptMinute:times.length?Number((times.at(-1)/60_000).toFixed(2)):null,
+    finalControlMode:fast.raceControlState?.mode??null,
+    raceControlTransitions,
+    tenMinuteWindows:Object.values(lateRaceWindows),
+  }));
   const pairedFailures=terminal.filter(e=>e.type==="overtake_failed")
     .reduce((acc,e)=>{const reason=String(e?.payload?.reason??"unknown");acc[reason]=(acc[reason]||0)+1;return acc;},{});
   const completionIds=new Set(successes.map(e=>String(e?.payload?.attemptId??"")));
