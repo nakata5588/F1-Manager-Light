@@ -3,7 +3,7 @@
 // Race physics use metres. Display geometry is only a deterministic mapping
 // from physical distance to an on-screen pose.
 
-import { resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
+import { historicalTrackLapLengthKm, resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 import { simplifyClosedPolyline } from "../../domain/trackSceneGeometry.js";
 import { provisionalAlbertParkSpeedProfile } from "../../data/tracks/tr_0019_1996_2020.speedProfile.js";
@@ -303,6 +303,10 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
 
   const lengthKm=firstPositive(
     metadata?.lap_length_km,
+    // Historic track-year facts take precedence over generic core_tracks
+    // and absent/stale lap_length_km snapshots. Explicit saved lengths in
+    // metres still take precedence below for running-race compatibility.
+    historicalTrackLapLengthKm(id,y),
     trackSnapshot?.lap_length_km,
     layout?.lap_length_km,
     trackPackage?.lap_length_km,
