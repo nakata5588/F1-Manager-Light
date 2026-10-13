@@ -21,7 +21,7 @@ This is a historical data-choice, not a demand to reshape the vector.
 ## Source and limitations
 
 - [F1DB Buenos Aires catalog](https://github.com/f1db/f1db/blob/main/src/data/circuits/buenos-aires.yml): identifies exactly SVG 1 = No.2 (1953–58 and 1960), SVG 2 = No.9 (1972–73), SVG 3 = No.15 (1974–81), SVG 4 = No.6 (1995–98).
-- Vector traces adapted and sampled from the [F1DB black SVG assets](https://github.com/f1db/f1db/tree/main/src/assets/circuits/black), Jules Roy, **CC BY 4.0**, [license](https://creativecommons.org/licenses/by/4.0/). No.2 is drawn as nine open connected strokes in the source SVG; assembled into one closed centreline before sampling.
+- Vector traces adapted and sampled from the [F1DB black SVG assets](https://github.com/f1db/f1db/tree/main/src/assets/circuits/black), Jules Roy, **CC BY 4.0**, [license](https://creativecommons.org/licenses/by/4.0/). No.2 is drawn as nine open connected strokes in the source SVG; assembled into one closed centreline. Two small source-stroke retrace crossings were smoothed locally before sampling, with a deterministic no-self-crossing regression test.
 - [Argentine GP history](https://en.wikipedia.org/wiki/Argentine_Grand_Prix): No.2 reused with reverse running direction **only in 1954**.
 - [STATS F1 Buenos Aires archive](https://www.statsf1.com/pt/circuit-buenos-aires.aspx): period-specific GP lap lengths.
 - [RacingCircuits Buenos Aires map archive](https://www.racingcircuits.info/south-america/argentina/buenos-aires.html): original circuits, alterations, period overview.
