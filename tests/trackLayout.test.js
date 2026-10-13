@@ -724,3 +724,64 @@ test("All five historical Imola centerlines avoid accidental self-intersections"
     }
   }
 });
+
+test("Silverstone has one identity and six unique geographic centerlines for its eight source SVG labels",()=>{
+  const items=TRACK_LAYOUT_ASSETS.filter(x=>x.track_id==="tr_0079").sort((a,b)=>a.year_from-b.year_from);
+  assert.deepEqual(items.map(x=>[x.layout_id,x.year_from,x.year_to]),[
+    ["tr_0079_classic",1949,1974],
+    ["tr_0079_woodcote",1975,1986],
+    ["tr_0079_bridge",1987,1990],
+    ["tr_0079_1991_1993",1991,1993],
+    ["tr_0079_1994_2009",1994,2009],
+    ["tr_0079_arena",2010,2099],
+  ]);
+  const years=[1950,1951,1952,1960,1973,1975,1979,1981,1985,1987,1990,1991,1993,1994,1995,1996,1997,1999,2000,2009,2010,2011,2020,2024,2026];
+  for(const year of years){
+    const res=resolveTrackLayout({trackId:"tr_0079",year});
+    const runtime=trackRuntimeGeometry(res);
+    assert.equal(res.resolution,"exact",String(year));
+    assert.equal(res.track_package.track_id,"tr_0079");
+    assert.equal(res.layout.race_direction,"clockwise");
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.equal(trackPresentationSplineEligible(res,runtime),false);
+    assert.deepEqual(res.geometry.points,runtime.geometry.points,String(year));
+    const pts=runtime.geometry.points;
+    const area=pts.reduce((acc,point,i)=>{
+      const next=pts[(i+1)%pts.length];
+      return acc+point[0]*next[1]-next[0]*point[1];
+    },0)/2;
+    assert.ok(area>0,"clockwise order "+year);
+    assert.equal(trackIntelligenceProfile(res.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(res.layout).pit_exit_progress,null);
+  }
+  assert.equal(trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0079",year:1948})).geometry,null,
+    "1948 non-championship runway GP needs a separate sourced route");
+  const yearsSame=[1994,1996,1997,2000,2009];
+  const initial=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0079",year:1994})).geometry.points;
+  for(const year of yearsSame){
+    assert.deepEqual(trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0079",year})).geometry.points,initial,
+      "1994–2009 F1DB SVG 5/6/7 are byte-identical; do not copy");
+  }
+});
+
+test("Six Silverstone GP illustrations are closed, equispaced and free of SVG join self-intersections",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1950,1979,1987,1991,2000,2020]){
+    const pts=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0079",year})).geometry.points;
+    const lengths=pts.map((p,i)=>{
+      const q=pts[(i+1)%pts.length];
+      return Math.hypot(q[0]-p[0],q[1]-p[1]);
+    });
+    assert.ok(Math.max(...lengths)<Math.min(...lengths)*1.06,"near-equal samples "+year);
+    for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
+      if(i===0&&j===pts.length-1)continue;
+      const a=pts[i],b=pts[(i+1)%pts.length],c=pts[j],d=pts[(j+1)%pts.length];
+      const crossing=orient(a,b,c)*orient(a,b,d)<-1e-8
+        &&orient(c,d,a)*orient(c,d,b)<-1e-8;
+      assert.equal(crossing,false,"self-crossing in "+year+": "+i+"/"+j);
+    }
+  }
+});
+
