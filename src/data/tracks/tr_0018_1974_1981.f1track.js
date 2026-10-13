@@ -1,3 +1,5 @@
+import { BUENOS_AIRES_LENGTH_PERIODS } from "./tr_0018_historical_eras.f1track.js";
+
 // F1Track 1.0 — canonical single-file runtime package for Buenos Aires Circuit No. 15.
 // Source references: Autodromo-Oscar-y-Juan-Galvez-White.svg + user-supplied GP Argentina visual reference.
 // The package intentionally contains both a compact minimap geometry and a richer race-view geometry/environment.
@@ -12,6 +14,7 @@ export const ARGENTINA_1974_1981_F1TRACK=Object.freeze({
   year_to:1981,
   reference_year:1980,
   lap_length_km:5.968,
+  lap_length_periods:BUENOS_AIRES_LENGTH_PERIODS,
   race_direction:"clockwise",
   start_finish_direction:"right",
   intelligence:Object.freeze({
