@@ -400,3 +400,49 @@ test("Imola 2007 construction era does not inherit another period's racing line"
   assert.equal(model.geometry.source,"none");
   assert.equal(model.speedProfile.source,"neutral");
 });
+
+test("Silverstone canonical TrackModel uses period lap distances without annual geometry copies",()=>{
+  const core={track_id:"tr_0079",track_name:"Silverstone Circuit",lap_length_km:5.141};
+  const examples=[
+    [1950,4649,"tr_0079_classic"],
+    [1951,4649,"tr_0079_classic"],
+    [1952,4711,"tr_0079_classic"],
+    [1969,4711,"tr_0079_classic"],
+    [1973,4711,"tr_0079_classic"],
+    [1975,4719,"tr_0079_woodcote"],
+    [1979,4719,"tr_0079_woodcote"],
+    [1981,4719,"tr_0079_woodcote"],
+    [1985,4719,"tr_0079_woodcote"],
+    [1987,4778,"tr_0079_bridge"],
+    [1990,4778,"tr_0079_bridge"],
+    [1991,5226,"tr_0079_1991_1993"],
+    [1993,5226,"tr_0079_1991_1993"],
+    [1994,5057,"tr_0079_1994_2009"],
+    [1995,5057,"tr_0079_1994_2009"],
+    [1996,5072,"tr_0079_1994_2009"],
+    [1997,5140,"tr_0079_1994_2009"],
+    [1999,5140,"tr_0079_1994_2009"],
+    [2000,5141,"tr_0079_1994_2009"],
+    [2009,5141,"tr_0079_1994_2009"],
+    [2010,5901,"tr_0079_arena"],
+    [2011,5891,"tr_0079_arena"],
+    [2024,5891,"tr_0079_arena"],
+  ];
+  for(const [year,metres,layout] of examples){
+    const gs={activeYear:year,coreTracks:[core]};
+    const model=buildTrackModel(gs,{gp:{track_id:"tr_0079",year,laps:52}});
+    assert.equal(model.trackId,"tr_0079");
+    assert.equal(model.layoutId,layout,"layout "+year);
+    assert.equal(model.lengthM,metres,"length "+year);
+    assert.equal(model.laps,52);
+    assert.equal(model.raceDirection,"clockwise");
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.geometry.quality,"derived_provisional");
+    assert.equal(model.resolution.exact,true);
+    assert.ok(model.racingLine?.points?.length>=24,"renderable spline "+year);
+    assert.ok(trackPoseAtDistance(model,metres-1),"continuous on final corner "+year);
+    assert.equal(model.speedProfile.source,"neutral","no cartographic corner physics "+year);
+    assert.equal(model.pitLane.available,false,"no invented pit geometry "+year);
+  }
+});
+
