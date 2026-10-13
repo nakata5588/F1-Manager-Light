@@ -614,3 +614,52 @@ test("Interlagos 1990 cutover changes geometry, not the identity or result archi
   assert.equal(trackIntelligenceProfile(original.layout).pit_entry_progress,null);
   assert.equal(trackIntelligenceProfile(short.layout).pit_exit_progress,null);
 });
+
+
+test("Buenos Aires has exactly four era-specific line families, one permanent track identity",()=>{
+  const expected=[
+    ["tr_0018_no2",1953,1960],
+    ["tr_0018_no9",1972,1973],
+    ["tr_0018_provisional",1974,1981],
+    ["tr_0018_no6_senna",1995,1998],
+  ];
+  const layouts=TRACK_LAYOUT_ASSETS.filter((layout)=>layout.track_id==="tr_0018")
+    .map((layout)=>[layout.layout_id,layout.year_from,layout.year_to])
+    .sort((a,b)=>a[1]-b[1]);
+  assert.deepEqual(layouts,expected);
+  for(const [layoutId,from,to] of expected){
+    const resolved=resolveTrackLayout({trackId:"tr_0018",year:from});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",layoutId);
+    assert.equal(resolved.layout.layout_id,layoutId);
+    assert.ok(runtime.geometry?.points?.length>200,layoutId);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points,
+      `${layoutId} legacy and modern geometry must be identical`);
+    assert.equal(resolveTrackLayout({trackId:"tr_0018",year:to}).layout.layout_id,layoutId);
+  }
+});
+
+test("1954 uses the No.2 track path reversed, with the same unchanged start/finish",()=>{
+  const original=resolveTrackLayout({trackId:"tr_0018",year:1953});
+  const reverse=resolveTrackLayout({trackId:"tr_0018",year:1954});
+  const back=resolveTrackLayout({trackId:"tr_0018",year:1955});
+  assert.equal(original.layout.layout_id,reverse.layout.layout_id);
+  assert.equal(original.track_package?.package_id,reverse.track_package?.package_id);
+  assert.equal(original.layout.race_direction,"clockwise");
+  assert.equal(reverse.layout.race_direction,"counterclockwise");
+  assert.equal(back.layout.race_direction,"clockwise");
+  const points=trackRuntimeGeometry(original).geometry.points;
+  const reversed=trackRuntimeGeometry(reverse).geometry.points;
+  assert.deepEqual(reversed[0],points[0]);
+  assert.deepEqual(reversed.slice(1),points.slice(1).reverse());
+  assert.deepEqual(reverse.geometry.points,reversed);
+  assert.deepEqual(trackRuntimeGeometry(back).geometry.points,points);
+  assert.equal(trackPresentationSplineEligible(reverse,trackRuntimeGeometry(reverse)),false);
+});
+
+test("Buenos Aires 1961–1971 and post-1981 unrelated years do not reuse old circuits",()=>{
+  for(const year of [1950,1961,1965,1971,1982,1991,1999,2024]){
+    const result=resolveTrackLayout({trackId:"tr_0018",year});
+    assert.equal(trackRuntimeGeometry(result).geometry,null,String(year));
+  }
+});
