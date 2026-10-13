@@ -3,6 +3,7 @@ import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
 import { BUENOS_AIRES_NO2_F1TRACK, BUENOS_AIRES_NO9_F1TRACK, BUENOS_AIRES_NO6_F1TRACK } from "./tracks/tr_0018_historical_eras.f1track.js";
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
+import { IMOLA_F1TRACK_FAMILIES } from "./tracks/tr_0047_imola.f1track.js";
 
 const freezeGeometry=(geometry,quality)=>Object.freeze({
   ...geometry,
@@ -35,7 +36,10 @@ export const HISTORICAL_TRACK_GEOMETRY=Object.freeze({
   },"historical_verified"),
   tr_0019_1996_2020:freezeGeometry(ALBERT_PARK_1996_2020_F1TRACK.functional,"derived_provisional"),
   tr_0028_long:freezeGeometry(INTERLAGOS_LONG_F1TRACK.functional,"derived_provisional"),
-  tr_0028_short:freezeGeometry(INTERLAGOS_SHORT_F1TRACK.functional,"derived_provisional")
+  tr_0028_short:freezeGeometry(INTERLAGOS_SHORT_F1TRACK.functional,"derived_provisional"),
+  ...Object.fromEntries(IMOLA_F1TRACK_FAMILIES.map((pkg)=>[
+    pkg.layout_id,freezeGeometry(pkg.functional,pkg.functional.quality)
+  ]))
 });
 
 Object.assign(TRACK_LAYOUT_GEOMETRY,HISTORICAL_TRACK_GEOMETRY);
