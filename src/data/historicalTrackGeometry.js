@@ -1,5 +1,6 @@
 import { TRACK_LAYOUT_GEOMETRY } from "./trackLayoutGeometry.js";
 import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
+import { BUENOS_AIRES_NO2_F1TRACK, BUENOS_AIRES_NO9_F1TRACK, BUENOS_AIRES_NO6_F1TRACK } from "./tracks/tr_0018_historical_eras.f1track.js";
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
 
@@ -23,6 +24,9 @@ export const HISTORICAL_TRACK_PRESENTATION_FALLBACKS=Object.freeze({
 });
 
 export const HISTORICAL_TRACK_GEOMETRY=Object.freeze({
+  tr_0018_no2:freezeGeometry(BUENOS_AIRES_NO2_F1TRACK.functional,"derived_provisional"),
+  tr_0018_no9:freezeGeometry(BUENOS_AIRES_NO9_F1TRACK.functional,"derived_provisional"),
+  tr_0018_no6_senna:freezeGeometry(BUENOS_AIRES_NO6_F1TRACK.functional,"derived_provisional"),
   tr_0018_provisional:freezeGeometry({
     ...ARGENTINA_1974_1981_F1TRACK.functional,
     race_direction:ARGENTINA_1974_1981_F1TRACK.race_direction,
