@@ -87,7 +87,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0041",["future_fallback",2002,"derived_provisional"]],
     ["tr_0022",["generic_fallback",null,"derived_provisional"]],
     ["tr_0058",["generic_fallback",null,"derived_provisional"]],
-    ["tr_0047",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0047",["exact",1980,"derived_provisional"]],
     ["tr_0030",["generic_fallback",null,"derived_provisional"]],
     ["tr_0090",["generic_fallback",null,"derived_provisional"]],
   ]);
@@ -675,6 +675,52 @@ test("Buenos Aires No.2 outline has no self-crossing joins from fragmented histo
       const intersects=oriented(a,b,c)*oriented(a,b,d)<-1e-8
         &&oriented(c,d,a)*oriented(c,d,b)<-1e-8;
       assert.equal(intersects,false,`historical stroke join crossing ${i}/${j}`);
+    }
+  }
+});
+
+test("Imola has one track ID with five era-specific families",()=>{
+  const a=TRACK_LAYOUT_ASSETS.filter(x=>x.track_id==="tr_0047").sort((x,y)=>x.year_from-y.year_from);
+  assert.deepEqual(a.map(x=>[x.layout_id,x.year_from,x.year_to]),[
+    ["tr_0047_original",1953,1972],
+    ["tr_0047_1973",1973,1973],
+    ["tr_0047_1974_1994",1974,1994],
+    ["tr_0047_1995_2006",1995,2006],
+    ["tr_0047_modern",2008,2099],
+  ]);
+  for(const year of [1953,1963,1972,1973,1974,1979,1980,1981,1994,1995,2000,2006,2008,2020,2024,2026]){
+    const resolved=resolveTrackLayout({trackId:"tr_0047",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.track_package.track_id,"tr_0047");
+    assert.equal(resolved.layout.race_direction,"counterclockwise");
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points);
+    const p=runtime.geometry.points;
+    const area=p.reduce((sum,point,i)=>{
+      const next=p[(i+1)%p.length];
+      return sum+point[0]*next[1]-next[0]*point[1];
+    },0)/2;
+    assert.ok(area<0,String(year)+" must be anticlockwise");
+    assert.equal(runtime.geometry.quality,
+      year<=1973?"schematic_provisional":"derived_provisional");
+  }
+  assert.equal(trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0047",year:1950})).geometry,null);
+  assert.equal(trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0047",year:2007})).geometry,null);
+});
+
+test("All five historical Imola centerlines avoid accidental self-intersections",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1963,1973,1980,2000,2020]){
+    const p=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0047",year})).geometry.points;
+    for(let i=0;i<p.length;i++)for(let j=i+2;j<p.length;j++){
+      if(i===0&&j===p.length-1)continue;
+      const a=p[i],b=p[(i+1)%p.length],c=p[j],d=p[(j+1)%p.length];
+      const crossing=orient(a,b,c)*orient(a,b,d)<-1e-8
+        &&orient(c,d,a)*orient(c,d,b)<-1e-8;
+      assert.equal(crossing,false,String(year)+" segments "+i+"/"+j);
     }
   }
 });

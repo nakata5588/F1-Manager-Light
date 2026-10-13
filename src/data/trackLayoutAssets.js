@@ -4,6 +4,7 @@ import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
 import { BUENOS_AIRES_NO2_F1TRACK, BUENOS_AIRES_NO9_F1TRACK, BUENOS_AIRES_NO6_F1TRACK } from "./tracks/tr_0018_historical_eras.f1track.js";
 import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js";
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
+import { IMOLA_F1TRACK_FAMILIES } from "./tracks/tr_0047_imola.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -142,7 +143,30 @@ export const TRACK_LAYOUT_ASSETS = [
   {"layout_id":"tr_0041_provisional","track_id":"tr_0041","label":"Hockenheim","year_from":2002,"year_to":2002,"reference_year":2002,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2002 Circuit"},
   {"layout_id":"tr_0022_provisional","track_id":"tr_0022","label":"Austria","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0058_provisional","track_id":"tr_0058","label":"Zandvoort","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
-  {"layout_id":"tr_0047_provisional","track_id":"tr_0047","label":"Imola","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
+  // Same tr_0047 identity for every era. 1953/1973 are explicitly schematic:
+  // no claim that a later-era F1DB SVG contains surveyed earlier chicanes.
+  ...IMOLA_F1TRACK_FAMILIES.map((pkg)=>({
+    layout_id:pkg.layout_id,
+    track_id:"tr_0047",
+    label:pkg.name,
+    track_package:pkg,
+    year_from:pkg.year_from,
+    year_to:pkg.year_to,
+    reference_year:pkg.reference_year,
+    geometry_exact_era_only:true,
+    historical_status:"provisional",
+    geometry_status:pkg.functional.quality,
+    track_intelligence_status:"derived_provisional",
+    lap_length_km:pkg.lap_length_km,
+    race_direction:pkg.race_direction,
+    start_finish_direction:pkg.start_finish_direction,
+    start_finish_progress:pkg.intelligence.start_finish_progress,
+    sector_boundaries:pkg.intelligence.sector_boundaries,
+    pit_entry_progress:null,
+    pit_exit_progress:null,
+    environment_view_box:pkg.functional.view_box,
+    source_label:pkg.functional.derivation,
+  })),
   {"layout_id":"tr_0030_provisional","track_id":"tr_0030","label":"Montreal","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0090_provisional","track_id":"tr_0090","label":"Watkins Glen","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"Long GP Circuit w/chicane"}
 ];

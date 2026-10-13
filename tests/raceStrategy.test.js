@@ -795,3 +795,19 @@ test("Buenos Aires historical Race Strategy resolves real lap lengths from share
     assert.equal(result.race_distance_km,Number((km*60).toFixed(1)),String(year));
   }
 });
+
+test("Imola race strategy shares historic distance facts with TrackModel",()=>{
+  const core={track_id:"tr_0047",lap_length_km:4.909};
+  const cases=[
+    [1953,5.018],[1973,5.122],[1974,5.060],[1979,5.040],
+    [1980,5.040],[1981,5.040],[1994,5.040],[1995,4.959],
+    [2000,4.959],[2006,4.959],[2020,4.909]
+  ];
+  for(const [year,km] of cases){
+    const result=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {track_id:"tr_0047",year,laps:60});
+    assert.equal(result.track_id,"tr_0047");
+    assert.equal(result.lap_length_km,km,String(year));
+    assert.equal(result.race_distance_km,Number((km*60).toFixed(1)),String(year));
+  }
+});
