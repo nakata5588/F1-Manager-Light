@@ -479,3 +479,29 @@ test("Kyalami Race TrackModel uses original and rebuilt period lengths, no carto
     assert.equal(model.geometry.source,"none");
   }
 });
+
+test("Long Beach Race TrackModel uses sourced F1 distances, no visual-controlled pace",()=>{
+  const core={track_id:"tr_0088",track_name:"Long Beach",lap_length_km:3.275};
+  for(const [year,metres,layout] of [
+    [1976,3251,"tr_0088_1976_1981"],[1978,3251,"tr_0088_1976_1981"],
+    [1980,3251,"tr_0088_1976_1981"],[1981,3251,"tr_0088_1976_1981"],
+    [1982,3428,"tr_0088_1982"],[1983,3275,"tr_0088_1983"]]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0088",year,laps:80}});
+    assert.equal(m.trackId,"tr_0088");assert.equal(m.layoutId,layout,String(year));
+    assert.equal(m.lengthM,metres,String(year));assert.equal(m.laps,80);
+    assert.equal(m.raceDirection,"clockwise");assert.equal(m.resolution.exact,true);
+    assert.equal(m.geometry.source,"f1track_functional");
+    assert.equal(m.geometry.quality,"derived_provisional");
+    assert.ok(m.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(m,metres-1),"continuous model "+year);
+    assert.equal(m.speedProfile.source,"neutral");
+    assert.equal(m.pitLane.available,false);
+  }
+  for(const year of [1975,1984,1999,2001]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0088",year}});
+    assert.equal(m.racingLine,null,"no stale F1 map "+year);
+    assert.equal(m.geometry.source,"none");
+  }
+});
