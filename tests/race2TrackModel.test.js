@@ -446,3 +446,36 @@ test("Silverstone canonical TrackModel uses period lap distances without annual 
   }
 });
 
+
+test("Kyalami Race TrackModel uses original and rebuilt period lengths, no cartographic physics",()=>{
+  const core={track_id:"tr_0067",track_name:"Kyalami",lap_length_km:4.104};
+  for(const [year,metres,layout,direction] of [
+    [1967,4094,"tr_0067_original","clockwise"],
+    [1968,4104,"tr_0067_original","clockwise"],
+    [1980,4104,"tr_0067_original","clockwise"],
+    [1985,4104,"tr_0067_original","clockwise"],
+    [1992,4261,"tr_0067_rebuilt","counterclockwise"],
+    [1993,4261,"tr_0067_rebuilt","counterclockwise"]
+  ]){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0067",year,laps:year===1980?78:72}});
+    assert.equal(model.trackId,"tr_0067");
+    assert.equal(model.layoutId,layout,String(year));
+    assert.equal(model.lengthM,metres,String(year));
+    assert.equal(model.laps,year===1980?78:72);
+    assert.equal(model.raceDirection,direction);
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.geometry.quality,"derived_provisional");
+    assert.equal(model.resolution.exact,true);
+    assert.ok(model.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(model,metres-1));
+    assert.equal(model.speedProfile.source,"neutral");
+    assert.equal(model.pitLane.available,false);
+  }
+  for(const year of [1966,1989,1994,2000]){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0067",year}});
+    assert.equal(model.racingLine,null,"no wrong-era geometry "+year);
+    assert.equal(model.geometry.source,"none");
+  }
+});

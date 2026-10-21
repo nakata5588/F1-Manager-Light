@@ -829,3 +829,16 @@ test("Silverstone race strategy shares historic race-distance facts with TrackMo
   }
 });
 
+
+test("Kyalami Race Strategy shares exact historical lap lengths with Race TrackModel",()=>{
+  const core={track_id:"tr_0067",lap_length_km:4.104};
+  for(const [year,km,laps] of [[1967,4.094,80],[1968,4.104,80],
+    [1970,4.104,80],[1980,4.104,78],[1985,4.104,75],
+    [1992,4.261,72],[1993,4.261,72]]){
+    const strategy=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0067",laps});
+    assert.equal(strategy.track_id,"tr_0067");
+    assert.equal(strategy.lap_length_km,km,String(year));
+    assert.equal(strategy.race_distance_km,Number((km*laps).toFixed(1)),String(year));
+  }
+});

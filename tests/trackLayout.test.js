@@ -111,13 +111,13 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
   }
 });
 
-test("Track 3.0 flags the three anachronistic 1980 future-layout geometries still renderable",()=>{
+test("Track 3.0 flags the remaining anachronistic 1980 future-layout geometries still renderable",()=>{
   const futureFallbacks=[...new Set(TRACK_LAYOUT_ASSETS.map((layout)=>layout.track_id))]
     .map((trackId)=>resolveTrackLayout({trackId,year:1980}))
     .filter((resolved)=>resolved.resolution==="future_fallback"&&resolved.geometry)
     .map((resolved)=>[resolved.layout.track_id,resolved.source_year])
     .sort(([a],[b])=>a.localeCompare(b));
-  assert.deepEqual(futureFallbacks,[["tr_0041",2002],["tr_0067",2016],["tr_0088",2000]]);
+  assert.deepEqual(futureFallbacks,[["tr_0041",2002],["tr_0088",2000]]);
   // Albert Park 1996–2020 is an era-bound *layout* fallback, not renderable
   // 1980 geometry; never mistake source-year discovery for on-track fidelity.
   const albert1980=resolveTrackLayout({trackId:"tr_0019",year:1980});
@@ -785,3 +785,64 @@ test("Six Silverstone GP illustrations are closed, equispaced and free of SVG jo
   }
 });
 
+
+test("Kyalami chronology maps two F1 routes onto one stable tr_0067 identity",()=>{
+  const items=TRACK_LAYOUT_ASSETS.filter(x=>x.track_id==="tr_0067");
+  assert.deepEqual(items.filter(x=>x.track_package).map(x=>[x.layout_id,x.year_from,x.year_to]),[
+    ["tr_0067_original",1967,1985],["tr_0067_rebuilt",1992,1993]
+  ]);
+  for(const [year,id,direction,km] of [
+    [1967,"tr_0067_original","clockwise",4.094],
+    [1968,"tr_0067_original","clockwise",4.104],
+    [1970,"tr_0067_original","clockwise",4.104],
+    [1980,"tr_0067_original","clockwise",4.104],
+    [1985,"tr_0067_original","clockwise",4.104],
+    [1992,"tr_0067_rebuilt","counterclockwise",4.261],
+    [1993,"tr_0067_rebuilt","counterclockwise",4.261],
+  ]){
+    const res=resolveTrackLayout({trackId:"tr_0067",year});
+    const runtime=trackRuntimeGeometry(res);
+    assert.equal(res.exact,true,String(year));
+    assert.equal(res.layout.layout_id,id,String(year));
+    assert.equal(res.layout.track_id,"tr_0067");
+    assert.equal(res.layout.race_direction,direction);
+    assert.equal(historicalTrackLapLengthKm("tr_0067",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.equal(trackPresentationSplineEligible(res,runtime),false);
+    assert.deepEqual(res.geometry.points,runtime.geometry.points);
+    assert.equal(trackIntelligenceProfile(res.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(res.layout).pit_exit_progress,null);
+    const pts=runtime.geometry.points;
+    const area=pts.reduce((sum,p,i)=>{
+      const q=pts[(i+1)%pts.length];
+      return sum+p[0]*q[1]-q[0]*p[1];
+    },0)/2;
+    assert.equal(area>0,direction==="clockwise",String(year)+" winding");
+  }
+  for(const year of [1961,1966,1986,1989,1991,1994,2000,2015,2017]){
+    const res=resolveTrackLayout({trackId:"tr_0067",year});
+    assert.equal(trackRuntimeGeometry(res).geometry,null,"not renderable "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0067",year),null,"no invented race length "+year);
+  }
+  const nonF1=resolveTrackLayout({trackId:"tr_0067",year:2016});
+  assert.equal(nonF1.exact,true);
+  assert.equal(nonF1.layout.layout_id,"tr_0067_provisional");
+  assert.equal(historicalTrackLapLengthKm("tr_0067",2016),null);
+});
+
+test("Kyalami sampled historic geometry is continuous and has no self crossings",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1980,1992]){
+    const p=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0067",year})).geometry.points;
+    const lengths=p.map((a,i)=>Math.hypot(a[0]-p[(i+1)%p.length][0],a[1]-p[(i+1)%p.length][1]));
+    assert.ok(Math.max(...lengths)<Math.min(...lengths)*1.07,"uniform sampling "+year);
+    for(let i=0;i<p.length;i++)for(let j=i+2;j<p.length;j++){
+      if(i===0&&j===p.length-1)continue;
+      const a=p[i],b=p[(i+1)%p.length],c=p[j],d=p[(j+1)%p.length];
+      assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8 &&
+        orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
