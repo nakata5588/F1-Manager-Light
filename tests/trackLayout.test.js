@@ -69,7 +69,7 @@ test("RW19 canonical Race View shares TrackModel geometry selection and only smo
 
   const longBeach=resolveTrackLayout({trackId:"tr_0088",year:1980});
   const longBeachRuntime=trackRuntimeGeometry(longBeach);
-  assert.equal(longBeachRuntime.source,"track_layout_geometry");
+  assert.equal(longBeachRuntime.source,"f1track_functional");
   assert.equal(longBeachRuntime.geometry.quality,"derived_provisional");
   assert.equal(trackPresentationSplineEligible(longBeach,longBeachRuntime),false);
 });
@@ -79,7 +79,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0018",["exact",1980,"historical_verified"]],
     ["tr_0028",["exact",1980,"derived_provisional"]],
     ["tr_0067",["exact",1980,"derived_provisional"]],
-    ["tr_0088",["future_fallback",2000,"derived_provisional"]],
+    ["tr_0088",["exact",1980,"derived_provisional"]],
     ["tr_0026",["generic_fallback",null,"derived_provisional"]],
     ["tr_0056",["generic_fallback",null,"derived_provisional"]],
     ["tr_0035",["generic_fallback",null,"derived_provisional"]],
@@ -117,7 +117,7 @@ test("Track 3.0 flags the remaining anachronistic 1980 future-layout geometries 
     .filter((resolved)=>resolved.resolution==="future_fallback"&&resolved.geometry)
     .map((resolved)=>[resolved.layout.track_id,resolved.source_year])
     .sort(([a],[b])=>a.localeCompare(b));
-  assert.deepEqual(futureFallbacks,[["tr_0041",2002],["tr_0088",2000]]);
+  assert.deepEqual(futureFallbacks,[["tr_0041",2002]]);
   // Albert Park 1996–2020 is an era-bound *layout* fallback, not renderable
   // 1980 geometry; never mistake source-year discovery for on-track fidelity.
   const albert1980=resolveTrackLayout({trackId:"tr_0019",year:1980});
@@ -842,6 +842,65 @@ test("Kyalami sampled historic geometry is continuous and has no self crossings"
       if(i===0&&j===p.length-1)continue;
       const a=p[i],b=p[(i+1)%p.length],c=p[j],d=p[(j+1)%p.length];
       assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8 &&
+        orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
+
+test("Long Beach three era-bound F1 tracks use one circuit identity and exact calendar lengths",()=>{
+  const items=TRACK_LAYOUT_ASSETS.filter(x=>x.track_id==="tr_0088");
+  assert.deepEqual(items.filter(x=>x.track_package).map(x=>[x.layout_id,x.year_from,x.year_to]),[
+    ["tr_0088_1976_1981",1976,1981],["tr_0088_1982",1982,1982],["tr_0088_1983",1983,1983]
+  ]);
+  for(const [year,id,km] of [
+    [1976,"tr_0088_1976_1981",3.251],[1977,"tr_0088_1976_1981",3.251],
+    [1978,"tr_0088_1976_1981",3.251],[1979,"tr_0088_1976_1981",3.251],
+    [1980,"tr_0088_1976_1981",3.251],[1981,"tr_0088_1976_1981",3.251],
+    [1982,"tr_0088_1982",3.428],[1983,"tr_0088_1983",3.275]
+  ]){
+    const r=resolveTrackLayout({trackId:"tr_0088",year}),runtime=trackRuntimeGeometry(r);
+    assert.equal(r.resolution,"exact",String(year));
+    assert.equal(r.layout.layout_id,id,String(year));
+    assert.equal(r.track_package.track_id,"tr_0088");
+    assert.equal(r.layout.race_direction,"clockwise");
+    assert.equal(historicalTrackLapLengthKm("tr_0088",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.deepEqual(r.geometry.points,runtime.geometry.points);
+    assert.equal(trackPresentationSplineEligible(r,runtime),false);
+    assert.equal(trackIntelligenceProfile(r.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(r.layout).pit_exit_progress,null);
+    const p=runtime.geometry.points;
+    const area=p.reduce((sum,a,i)=>{const b=p[(i+1)%p.length];return sum+a[0]*b[1]-b[0]*a[1]},0)/2;
+    assert.ok(area>0,"clockwise "+year);
+  }
+  assert.deepEqual(trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0088",year:1976})).geometry.points,
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0088",year:1980})).geometry.points,
+    "1978 start move is not a new street layout");
+  for(const year of [1975,1984,1990,1999,2001,2026]){
+    const r=resolveTrackLayout({trackId:"tr_0088",year});
+    assert.equal(trackRuntimeGeometry(r).geometry,null,"no anachronistic map "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0088",year),null,"no false race distance "+year);
+  }
+  const legacy=resolveTrackLayout({trackId:"tr_0088",year:2000});
+  assert.equal(legacy.resolution,"exact");
+  assert.equal(legacy.layout.layout_id,"tr_0088_provisional");
+  assert.equal(historicalTrackLapLengthKm("tr_0088",2000),null);
+});
+
+test("Long Beach three illustrative F1 centerlines avoid crossings, near-uniform sampled arc length",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1976,1982,1983]){
+    const p=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0088",year})).geometry.points;
+    const gaps=p.map((a,i)=>Math.hypot(a[0]-p[(i+1)%p.length][0],a[1]-p[(i+1)%p.length][1]));
+    // Straight chord length shortens at sharp street-circuit bends: arc length
+    // is equally sampled, but vertex-to-vertex chords need not be identical.
+    assert.ok(Math.max(...gaps)<Math.min(...gaps)*1.16,"uniform arc samples "+year);
+    for(let i=0;i<p.length;i++)for(let j=i+2;j<p.length;j++){
+      if(i===0&&j===p.length-1)continue;
+      const [a,b,c,d]=[p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]];
+      assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8&&
         orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
     }
   }

@@ -842,3 +842,19 @@ test("Kyalami Race Strategy shares exact historical lap lengths with Race TrackM
     assert.equal(strategy.race_distance_km,Number((km*laps).toFixed(1)),String(year));
   }
 });
+
+test("Long Beach race Strategy consumes same historic F1 distance facts",()=>{
+  const core={track_id:"tr_0088",lap_length_km:3.275};
+  for(const [year,km] of [
+    [1976,3.251],[1977,3.251],[1978,3.251],[1980,3.251],
+    [1981,3.251],[1982,3.428],[1983,3.275]
+  ]){
+    const p=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0088",laps:80});
+    assert.equal(p.track_id,"tr_0088");
+    assert.equal(p.lap_length_km,km,String(year));
+    assert.equal(p.race_distance_km,Number((km*80).toFixed(1)),String(year));
+  }
+  // 1980 has separate +1.625km actual start-to-finish offset (StatsF1).
+  // Not part of per-lap geometry or implemented in Race Core.
+});
