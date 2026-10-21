@@ -128,8 +128,8 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   assert.equal(loaded.raceWeekendState.phase, "race");
   assert.deepEqual(
     loaded.raceWeekendState.canonical_race_runtime.state,
-    partial,
-    "Save/Load must preserve the canonical RaceState, not restart the race"
+    JSON.parse(JSON.stringify(partial)),
+    "Save/Load must preserve the canonical JSON RaceState, not restart the race"
   );
 
   const finished = runFastRaceToEnd(
