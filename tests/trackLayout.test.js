@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackPresentationSplineEligible, trackRuntimeGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { historicalTrackLapLengthKm, calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackPresentationSplineEligible, trackRuntimeGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 import { buildClosedRacingLine } from "../src/domain/raceSplineV3.js";
@@ -78,7 +78,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
   const expected=new Map([
     ["tr_0018",["exact",1980,"historical_verified"]],
     ["tr_0028",["exact",1980,"derived_provisional"]],
-    ["tr_0067",["future_fallback",2016,"derived_provisional"]],
+    ["tr_0067",["exact",1980,"derived_provisional"]],
     ["tr_0088",["future_fallback",2000,"derived_provisional"]],
     ["tr_0026",["generic_fallback",null,"derived_provisional"]],
     ["tr_0056",["generic_fallback",null,"derived_provisional"]],
