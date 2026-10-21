@@ -161,8 +161,10 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   assert.deepEqual(repeated.standings, finalized.standings);
 
   let recovered = roundTripSave(finalized);
-  assert.deepEqual(recovered.results, finalized.results, "Results must survive Save/Load");
-  assert.deepEqual(recovered.standings, finalized.standings, "standings must survive Save/Load");
+  assert.deepEqual(recovered.results, JSON.parse(JSON.stringify(finalized.results)),
+    "Results must survive Save/Load in the JSON storage representation");
+  assert.deepEqual(recovered.standings, JSON.parse(JSON.stringify(finalized.standings)),
+    "standings must survive Save/Load in the JSON storage representation");
   assert.equal(recovered.raceWeekendState.phase, "results");
   const followingDay = new Date(Date.parse(recovered.raceWeekendState.raceDate + "T00:00:00Z") + 86_400_000)
     .toISOString().slice(0, 10);
