@@ -6,6 +6,7 @@ import ALBERT_PARK_1996_2020_F1TRACK from "./tracks/tr_0019_1996_2020.f1track.js
 import { INTERLAGOS_LONG_F1TRACK, INTERLAGOS_SHORT_F1TRACK } from "./tracks/tr_0028_interlagos.f1track.js";
 import { IMOLA_F1TRACK_FAMILIES } from "./tracks/tr_0047_imola.f1track.js";
 import { SILVERSTONE_F1TRACK_FAMILIES } from "./tracks/tr_0079_silverstone.f1track.js";
+import { KYALAMI_F1TRACK_FAMILIES } from "./tracks/tr_0067_kyalami.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -160,7 +161,21 @@ export const TRACK_LAYOUT_ASSETS = [
     "environment_view_box":INTERLAGOS_SHORT_F1TRACK.functional.view_box,
     "source_label":"F1DB interlagos-2 (Jules Roy, CC BY 4.0), short GP circuit since 1990 — illustrative, not surveyed GPS"
   },
-  {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
+  // Exactly two championship F1 route families for Kyalami.
+  // 1968 distance change is a fact, NOT a third new outline.
+  ...KYALAMI_F1TRACK_FAMILIES.map((pkg)=>({
+    layout_id:pkg.layout_id,track_id:"tr_0067",label:pkg.name,
+    track_package:pkg,year_from:pkg.year_from,year_to:pkg.year_to,
+    reference_year:pkg.reference_year,geometry_exact_era_only:true,
+    historical_status:"provisional",geometry_status:"derived_provisional",
+    track_intelligence_status:"derived_provisional",
+    lap_length_km:pkg.lap_length_km,race_direction:pkg.race_direction,
+    start_finish_progress:pkg.intelligence.start_finish_progress,
+    sector_boundaries:pkg.intelligence.sector_boundaries,
+    pit_entry_progress:null,pit_exit_progress:null,
+    environment_view_box:pkg.functional.view_box,source_label:pkg.functional.derivation,
+  })),
+  {"layout_id":"tr_0067_provisional","track_id":"tr_0067","geometry_exact_era_only":true,"label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
   {"layout_id":"tr_0088_provisional","track_id":"tr_0088","label":"Long Beach","year_from":2000,"year_to":2000,"reference_year":2000,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2000 Circuit"},
   {"layout_id":"tr_0026_provisional","track_id":"tr_0026","label":"Zolder","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0056_provisional","track_id":"tr_0056","label":"Monaco","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
