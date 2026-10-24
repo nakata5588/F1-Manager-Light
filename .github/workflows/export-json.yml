@@ -296,6 +296,9 @@ jobs:
         run: node --test tests/season2000Weekend.real.test.js
       - name: Test real 1980 Renault Argentina Practice and Qualifying
         run: node --test tests/season1980Weekend.real.test.js
+      - name: Gate full 1980 Renault Argentina career flow, canonical race and save recovery
+        timeout-minutes: 23
+        run: node --test tests/season1980CareerSlice.real.test.js
       - name: Audit generated 2000 car attributes and provenance
         run: npm run audit:cars:historical
 
