@@ -1560,7 +1560,7 @@ export default function RaceWeekend(){
               </div>
 
               <div className="mt-3 border-t border-white/10 pt-3">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Programme focus</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Selected programme — projected multipliers (not cumulative results)</div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
                   <span title="Multiplies how quickly the setup converges toward the circuit target." className="rounded bg-violet-500/10 px-2 py-1 text-violet-300">Setup learning ×{Number(programme.learningMultiplier||1).toFixed(2)}</span>
                   <span title="Programme qualifying bonus; weather relevance is applied after Practice." className="rounded bg-sky-500/10 px-2 py-1 text-sky-300">Qualifying focus {signedValue(programme.qualifyingBonus||0)}</span>
@@ -1585,7 +1585,7 @@ export default function RaceWeekend(){
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session review</div>
             <h3 className="mt-1 text-lg font-semibold">Practice Complete</h3>
-            <p className="text-sm text-slate-400 mt-1">These are gameplay indices and session outcomes, not literal real-world percentages.</p>
+            <p className="text-sm text-slate-400 mt-1">Session outcomes recorded by the Practice core, whether managed manually or Quick Simulated. Setup and knowledge are estimates; focus modifiers are not lap-time seconds.</p>
           </div>
           {weekend.phase==="practice_complete"&&<button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
             {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to Qualifying":"Advance to Qualifying"}
@@ -1648,6 +1648,20 @@ export default function RaceWeekend(){
                 <span className={"rounded px-2 py-1 "+fatigueTone(fatigueAfter)}>Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {fatigueAfter.toFixed(0)}</span>
                 <span className="rounded bg-white/[0.05] px-2 py-1 text-slate-300">Learning {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
                 <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Wear +{Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-cyan-300">Session gains & costs · {Number(row.managed_stints||0)>0?"Managed Practice":"Quick Simulate"}</div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <div><div className="text-slate-400">Preparation gained</div><div className="font-semibold text-emerald-300">+{Number(row.preparation_gain||0).toFixed(1)}</div></div>
+                  <div><div className="text-slate-400">Qualifying focus earned</div><div className="font-semibold text-sky-300">+{Number(row.qualifying_bonus||0).toFixed(3)}</div></div>
+                  <div><div className="text-slate-400">Race focus earned</div><div className="font-semibold text-sky-300">+{Number(row.race_bonus||0).toFixed(3)}</div></div>
+                  <div><div className="text-slate-400">Final setup quality</div><div className="font-semibold">{Number(row.setup_quality||0).toFixed(1)}/100</div></div>
+                  <div><div className="text-slate-400">Final setup knowledge</div><div className="font-semibold">{Number(row.setup_knowledge||0).toFixed(1)}/100</div></div>
+                  <div><div className="text-slate-400">Fatigue cost</div><div className="font-semibold text-amber-300">+{Number(row.fatigue_cost||0).toFixed(1)}</div></div>
+                </div>
+                {Number(row.managed_stints||0)>0&&<p className="mt-2 text-[11px] text-slate-400">{row.managed_stints} recorded running minutes · focus rewards summed across all selected programmes. Component wear is applied as the session proceeds.</p>}
+                <p className="mt-1 text-[11px] text-slate-500">Mileage means relative running distance, not a lap counter. Actual laps and lap times require a separate timing model.</p>
               </div>
 
               <div className="mt-3 rounded-lg border border-white/10 bg-[#0f141d] p-3">
