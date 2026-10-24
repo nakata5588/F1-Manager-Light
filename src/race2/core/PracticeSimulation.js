@@ -14,6 +14,7 @@ import { applyMentalStateDeltaToCondition } from "../../domain/driverMentalState
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
+const round3=(n)=>Math.round(Number(n||0)*1000)/1000;
 const num=(value,fallback=0)=>{
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
@@ -277,12 +278,12 @@ export function simulateCanonicalPractice(input={}){
       feedback:feedbackFor(final,target),
       // Managed stints earn only their proportional programme benefit;
       // repeated short runs cannot each grant a full-session bonus.
-      qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*num(input?.qualifyingRelevance,0.75))*stintFraction),
-      race_bonus:round1(programme.raceBonus*(0.62+0.38*num(input?.raceRelevance,0.75))*stintFraction),
+      qualifying_bonus:round3(programme.qualifyingBonus*(0.62+0.38*num(input?.qualifyingRelevance,0.75))*stintFraction),
+      race_bonus:round3(programme.raceBonus*(0.62+0.38*num(input?.raceRelevance,0.75))*stintFraction),
       reliability_bonus:0,
       reliability_diagnostic_bonus:programme.reliabilityBonus,
-      mileage_factor:round1(programme.mileageFactor*stintFraction),
-      wear_factor:round1(programme.wearFactor*(0.85+num(input?.tyreWear,50)/100*0.30)*stintFraction),
+      mileage_factor:round3(programme.mileageFactor*stintFraction),
+      wear_factor:round3(programme.wearFactor*(0.85+num(input?.tyreWear,50)/100*0.30)*stintFraction),
       fatigue_cost:round1(programme.fatigue*stintFraction),
       weather_state:sessionWeather?.state||null,
       track_wetness:round1(num(sessionWeather?.track?.start_wetness,0)*100),
