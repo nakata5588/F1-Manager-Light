@@ -10,6 +10,7 @@ import {
   pitRefuelServiceSecondsForYear,
 } from "../../domain/racePitModel.js";
 import { aiPitRepairDecision } from "../../engine/AIPitRepairEngine.js";
+import { tyreWeatherPenaltyForWetness } from "../../engine/TyreCrossoverEngine.js";
 import { tyreConditionEffects } from "../../domain/raceTyreModel.js";
 import {
   buildRaceClassification,
