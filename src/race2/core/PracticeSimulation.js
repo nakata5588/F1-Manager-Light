@@ -160,15 +160,16 @@ function issueFor(input,entry,programme){
     fatigue,
   });
   const roll=rng.next();
+  const exposure=entry?.stintMinutes?Math.min(1,Math.max(0,num(entry.stintMinutes)/60)):1;
 
-  if(roll<contactChance){
+  if(roll<contactChance*exposure){
     return {
       issue_type:"contact",
       issue_slot:"aero_front",
       issue_note:"Minor contact interrupted part of the programme.",
     };
   }
-  if(roll<contactChance+mechanicalChance){
+  if(roll<(contactChance+mechanicalChance)*exposure){
     const cause=selectMechanicalFailureReason(reliability,rng.next());
     return {
       issue_type:"mechanical",
@@ -217,24 +218,26 @@ export function simulateCanonicalPractice(input={}){
     );
     const initial={};
     const final={};
+    const stintFraction=entry?.stintMinutes?clamp(num(entry.stintMinutes)/60,0.01,1):1;
     const progress=clamp(
       (0.28+(learning/100)*0.50)*programme.learningMultiplier,
       0.20,
       0.92
-    );
+    )*stintFraction;
     for(const [key,targetValue] of Object.entries(target)){
       const initialError=(rng.next()-0.5)*38;
-      initial[key]=round1(clamp(targetValue+initialError));
-      final[key]=round1(clamp(targetValue+initialError*(1-progress)));
+      initial[key]=round1(clamp(entry?.priorSetup?.[key]??targetValue+initialError));
+      // Each managed stint starts at the car's actual previous setup.
+      // A fresh RNG sample is only used for an uninitialised car, not to
+      // replace the progress achieved during earlier running.
+      final[key]=round1(clamp(targetValue+(initial[key]-targetValue)*(1-progress)));
     }
 
     const quality=setupQuality(final,target);
-    const knowledge=round1(clamp(
-      22+
-      learning*0.52+
-      programme.mileageFactor*12+
-      (programme.id==="setup"?8:0)
-    ));
+    const baselineKnowledge=clamp(22+learning*0.52+programme.mileageFactor*12+(programme.id==="setup"?8:0));
+    const knowledge=entry?.stintMinutes
+      ?round1(clamp(num(entry.priorKnowledge,0)+(100-num(entry.priorKnowledge,0))*baselineKnowledge/100*stintFraction))
+      :round1(baselineKnowledge);
     const issue=issueFor(input,entry,programme);
     const issuePenalty=issue.issue_type?2:0;
     const prepGain=clamp((
@@ -242,11 +245,11 @@ export function simulateCanonicalPractice(input={}){
       Math.max(0,quality-60)*0.05+
       Math.max(0,knowledge-60)*0.025-
       issuePenalty
-    )*(0.70+fatigueEfficiency*0.30),2,14);
+    )*(0.70+fatigueEfficiency*0.30)*stintFraction,0,14);
 
     const nextCondition=applyMentalStateDeltaToCondition(previous,{
       preparation:prepGain,
-      fatigue:programme.fatigue,
+      fatigue:programme.fatigue*stintFraction,
       confidence:quality>=82?1:quality<55?-0.5:0,
     });
     conditionByDriver[driverId]=nextCondition;
@@ -276,9 +279,9 @@ export function simulateCanonicalPractice(input={}){
       race_bonus:round1(programme.raceBonus*(0.62+0.38*num(input?.raceRelevance,0.75))),
       reliability_bonus:0,
       reliability_diagnostic_bonus:programme.reliabilityBonus,
-      mileage_factor:programme.mileageFactor,
-      wear_factor:round1(programme.wearFactor*(0.85+num(input?.tyreWear,50)/100*0.30)),
-      fatigue_cost:programme.fatigue,
+      mileage_factor:round1(programme.mileageFactor*stintFraction),
+      wear_factor:round1(programme.wearFactor*(0.85+num(input?.tyreWear,50)/100*0.30)*stintFraction),
+      fatigue_cost:round1(programme.fatigue*stintFraction),
       weather_state:sessionWeather?.state||null,
       track_wetness:round1(num(sessionWeather?.track?.start_wetness,0)*100),
       track_grip:round1(num(sessionWeather?.track?.grip_index,88)),

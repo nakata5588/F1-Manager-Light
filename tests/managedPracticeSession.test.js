@@ -33,3 +33,13 @@ test("stint summary reflects recorded outcomes and elapsed running",()=>{
   state=appendPracticeStint(state,{driverId:"D1",programmeId:"setup",minutes:10,outcome:{setup_quality:90,issue_type:"contact"}});
   assert.deepEqual(managedPracticeSummary(state,"D1"),{stints:2,minutes:20,issues:1,lastOutcome:{setup_quality:90,issue_type:"contact"}});
 });
+
+test("managed Practice state survives JSON save/load without losing stint outcomes",()=>{
+  const original=appendPracticeStint(managedPracticeState({}),{
+    driverId:"D1",programmeId:"setup",minutes:10,
+    outcome:{setup:{gearing:63},setup_knowledge:18.2,fatigue_cost:1},
+  });
+  const restored=managedPracticeState({managed_practice:JSON.parse(JSON.stringify(original))});
+  assert.deepEqual(restored,original);
+  assert.equal(managedPracticeSummary(restored,"D1").lastOutcome.setup.gearing,63);
+});

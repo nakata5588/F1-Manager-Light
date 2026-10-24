@@ -297,29 +297,34 @@ export function setPracticeProgramme(gs,{driverId,programmeId}={}){
 }
 
 
-/** Managed Practice trial: a stint's engineering snapshot comes from the existing canonical
- * simulator. It is a diagnostic sample, not a second official Practice classification.
- * The cumulative-session simulation is still pending, so the final Practice retains
- * its existing authoritative calculation.
+/** Execute only the requested driver through the canonical Practice core.
+ * Persist every result and effect immediately; the next stint inherits the
+ * last setup, knowledge, fatigue and component wear.
  */
 export function runManagedPracticeStint(gs,{driverId,minutes=10}={}){
   const w=gs?.raceWeekendState;
   if(!w||w.phase!=="practice")return gs;
+  const id=String(driverId??"");
   const state=managedPracticeState(w);
-  if(!canRunPracticeStint(state,String(driverId),minutes))return gs;
-  const programmeId=w.practice_selections?.[String(driverId)]||"balanced";
+  if(!canRunPracticeStint(state,id,minutes))return gs;
+  const programmeId=w.practice_selections?.[id]||"balanced";
   const targetGp=targetGpForWeekend(w,gs?.calendar?.[Number(w.roundIndex)||0]);
-  const probe={...gs,raceWeekendState:{...w,key:`${w.key}:managed:${state.stints.length}`}};
-  const sample=simulatePracticeSession(probe,{gp:targetGp,selections:w.practice_selections||{}});
-  const result=sample.practice?.results?.find(r=>String(r.driver_id)===String(driverId));
+  const previous=state.stints.filter(row=>row.driver_id===id).at(-1)?.outcome;
+  const simulated=simulatePracticeSession(gs,{
+    gp:targetGp,
+    selections:{[id]:programmeId},
+    driverIds:[id],
+    managedStint:{
+      minutes:Number(minutes),sequence:state.stints.length,
+      priorSetup:previous?.setup||null,
+      priorKnowledge:previous?.setup_knowledge||0,
+    },
+  });
+  const result=simulated.practice?.results?.find(row=>String(row.driver_id)===id);
   if(!result)return gs;
-  let next=appendPracticeStint(state,{driverId,programmeId,minutes,outcome:{
-    setup_quality:result.setup_quality,setup_knowledge:result.setup_knowledge,
-    feedback:result.feedback,issue_note:result.issue_note||null,
-    issue_type:result.issue_type||null,weather_state:result.weather_state,
-  }});
-  if(result.issue_type)next=markPracticeDamage(next,String(driverId),result.issue_note);
-  return {...gs,raceWeekendState:{...w,managed_practice:next}};
+  let next=appendPracticeStint(state,{driverId:id,programmeId,minutes,outcome:result});
+  if(result.issue_type)next=markPracticeDamage(next,id,result.issue_note);
+  return {...simulated.gameState,raceWeekendState:{...w,managed_practice:next}};
 }
 export function repairManagedPracticeCar(gs,{driverId,minutes=15}={}){
   const w=gs?.raceWeekendState;
@@ -391,10 +396,31 @@ export function completePracticeSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return gs;
   const targetGp=targetGpForWeekend(weekend,gp);
+  const managed=weekend.managed_practice;
+  const managedDrivers=new Set((managed?.stints||[]).map(row=>String(row.driver_id)));
+  const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const eligibleIds=(gs?.raceEntryState?.entries||[])
+    .filter(entry=>!managedDrivers.size||String(entry?.team_id)!==playerTeamId)
+    .map(entry=>String(entry.driver_id));
   const session=simulatePracticeSession(gs,{
     gp:targetGp,
     selections:weekend.practice_selections||{},
+    driverIds:managedDrivers.size?eligibleIds:null,
   });
+  if(managedDrivers.size&&session.practice){
+    const managedResults=[...managedDrivers].map(id=>{
+      const stints=managed.stints.filter(row=>String(row.driver_id)===id);
+      const last=stints.at(-1)?.outcome;
+      if(!last)return null;
+      return {
+        ...last,
+        preparation_gain:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.preparation_gain||0),0)*10)/10,
+        fatigue_cost:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.fatigue_cost||0),0)*10)/10,
+        managed_stints:stints.length,
+      };
+    }).filter(Boolean);
+    session.practice.results=[...session.practice.results,...managedResults];
+  }
   if(!session.practice)return gs;
 
   const sessions=sessionWithPatch(weekend.sessions,"practice",{
