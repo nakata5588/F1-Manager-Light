@@ -581,3 +581,37 @@ test("Monaco Race TrackModel shares physical lap facts and neutral speed for ill
     assert.equal(m.racingLine,null);
   }
 });
+
+test("Paul Ricard F1 TrackModel uses actual 1980 distance and neutral historical visual physics",()=>{
+  const core={track_id:"tr_0035",track_name:"Circuit Paul Ricard",lap_length_km:5.842};
+  for(const [year,lengthM,layoutId,laps] of [
+    [1971,5810,"tr_0035_original",55],
+    [1980,5810,"tr_0035_original",54],
+    [1985,5810,"tr_0035_original",53],
+    [1986,3813,"tr_0035_short",80],
+    [1990,3813,"tr_0035_short",80],
+    [2018,5842,"tr_0035_modern",53],
+    [2022,5842,"tr_0035_modern",53]
+  ]){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0035",year,laps}});
+    assert.equal(model.trackId,"tr_0035",String(year));
+    assert.equal(model.layoutId,layoutId,String(year));
+    assert.equal(model.lengthM,lengthM,String(year));
+    assert.equal(model.laps,laps);
+    assert.equal(model.raceDirection,"clockwise");
+    assert.equal(model.resolution.exact,true);
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.geometry.quality,"derived_provisional");
+    assert.ok(model.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(model,lengthM-1),"physical metres wrap "+year);
+    assert.equal(model.speedProfile.source,"neutral");
+    assert.equal(model.pitLane.available,false);
+  }
+  for(const year of [1969,1991,2000,2017,2023]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0035",year}});
+    assert.equal(m.geometry.source,"none","not F1 track display "+year);
+    assert.equal(m.racingLine,null,"no wrong era line "+year);
+  }
+});
