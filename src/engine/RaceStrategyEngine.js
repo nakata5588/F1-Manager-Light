@@ -7,6 +7,7 @@
 
 import { rngFor } from "../core/random.js";
 import { historicalTrackLapLengthKm } from "../domain/trackLayout.js";
+import { historicalGrandPrixLaps } from "../data/historicalGrandPrixLaps.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { staffStrategyDecisionDelta } from "../domain/staffPerformance.js";
@@ -273,7 +274,8 @@ export function raceTrackProfile(gs,gp={}){
   // the same source; core_tracks holds only the current generic lap length.
   const historicalKm=historicalTrackLapLengthKm(trackId,year);
   const lapKm=Math.max(1,num(layout?.lap_length_km,historicalKm??gp?.lap_length_km??core?.lap_length_km??4.5));
-  const laps=Math.max(1,Math.round(num(layout?.laps,gp?.laps??(305/lapKm))));
+  const eventLaps=gp?.laps??gp?.race_laps??historicalGrandPrixLaps(gp,year);
+  const laps=Math.max(1,Math.round(num(eventLaps??layout?.laps,305/lapKm)));
   const pitLoss=Math.max(8,num(layout?.pit_lane_loss_s,gp?.pit_lane_loss_s??core?.pit_lane_loss_s??24));
   const tyreWear=clamp(num(core?.tyre_wear,50),0,100);
   const overtakingDifficulty=clamp(num(core?.overtaking_difficulty,50),0,100);
