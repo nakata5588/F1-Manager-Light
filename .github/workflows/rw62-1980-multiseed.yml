@@ -1,0 +1,43 @@
+name: RW62 real 1980 three-GP multi-seed calibration
+
+on:
+  pull_request:
+    paths:
+      - "tests/rw62Season1980Multiseed.real.test.js"
+      - ".github/workflows/rw62-1980-multiseed.yml"
+      - "src/race2/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  historical-1980-multiseed:
+    name: 1980 RW62 overtakes / ${{ matrix.gp }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        gp: [argentina, brazil, monaco]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate canonical 1980 Season Pack from official workbook
+        run: |
+          npm run build:data
+          node scripts/build-team-constructor-bridge.mjs
+          node scripts/build-team-seasons.mjs
+          node scripts/build-driver-history.mjs
+          node scripts/build-historical-championships.mjs
+          node scripts/build-season-packs.mjs --years=1980
+      - name: Run two full 1980 races on same physical canonical core
+        timeout-minutes: 25
+        env:
+          RW62_GP: ${{ matrix.gp }}
+        run: node --test tests/rw62Season1980Multiseed.real.test.js
