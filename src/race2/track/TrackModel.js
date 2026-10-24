@@ -9,6 +9,7 @@ import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/ra
 import { simplifyClosedPolyline } from "../../domain/trackSceneGeometry.js";
 import { provisionalAlbertParkSpeedProfile } from "../../data/tracks/tr_0019_1996_2020.speedProfile.js";
 import { provisionalKyalamiSpeedProfile } from "../../data/tracks/tr_0067_kyalami.speedProfile.js";
+import { provisionalInterlagosSpeedProfile } from "../../data/tracks/tr_0028_interlagos.speedProfile.js";
 
 export const TRACK_MODEL_SCHEMA_VERSION=2;
 
@@ -248,7 +249,8 @@ export function buildTrackSpeedProfile(model,{detailed=null}={}){
   // full-throttle straight. Verified functional paths always take precedence.
   if(!trusted){
     const provisional=provisionalAlbertParkSpeedProfile(model?.trackId,model?.year,length)
-      ??provisionalKyalamiSpeedProfile(model?.trackId,model?.year,length,model?.layoutId);
+      ??provisionalKyalamiSpeedProfile(model?.trackId,model?.year,length,model?.layoutId)
+      ??provisionalInterlagosSpeedProfile(model?.trackId,model?.year,length,model?.layoutId);
     if(provisional)return provisional;
   }
   if(length<=0||!hasLine||!trusted){
