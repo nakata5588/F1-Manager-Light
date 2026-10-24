@@ -20,7 +20,7 @@
     "rule_id": "qual_1980_monaco",
     "year_from": 1980,
     "year_to": 1980,
-    "gp_id": "gp_006",
+    "track_id": "tr_0056",
     "max_starters": 20,
     "practice_day_offset": -3,
     "session_day_offsets": [
@@ -34,7 +34,7 @@
     "rule_id": "qual_1980_argentina",
     "year_from": 1980,
     "year_to": 1980,
-    "gp_id": "gp_001",
+    "track_id": "tr_0018",
     "max_entries": 28,
     "team_entry_limits": {
       "t_0013": 1,
