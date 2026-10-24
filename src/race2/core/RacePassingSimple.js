@@ -100,7 +100,7 @@ const cooling=(state,a,b)=>{
   const otherMean=(defender[0]+defender[1])/2;
   // Half a second advantage over two completed laps: avoid corner/tow
   // oscillations becoming repeat passes. No added speed or fake positions.
-  return ownMean+500>otherMean;
+  return ownMean+500>=otherMean;
 };
 
 // One source for the small opportunity scoring calculation and diagnostics.
