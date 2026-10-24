@@ -11,6 +11,7 @@ import { LONG_BEACH_F1TRACK_FAMILIES } from "./tracks/tr_0088_long_beach.f1track
 import { ZOLDER_F1TRACK_FAMILIES } from "./tracks/tr_0026_zolder.f1track.js";
 import { MONACO_F1TRACK_FAMILIES } from "./tracks/tr_0056_monaco.f1track.js";
 import { PAUL_RICARD_F1TRACK_FAMILIES } from "./tracks/tr_0035_paul_ricard.f1track.js";
+import { BRANDS_HATCH_F1TRACK_FAMILIES } from "./tracks/tr_0081_brands_hatch.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -241,7 +242,22 @@ export const TRACK_LAYOUT_ASSETS = [
     source_label:pkg.functional.derivation,
   })),
   {"layout_id":"tr_0035_provisional","track_id":"tr_0035","geometry_exact_era_only":true,"label":"Paul Ricard","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
-  {"layout_id":"tr_0081_provisional","track_id":"tr_0081","label":"Brands Hatch","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
+  // F1 Grand Prix loop before/after the real winter 1975/76 changes.
+  // One circuit tr_0081, no dated SVG for 1988+ or pre-1960 short loop.
+  ...BRANDS_HATCH_F1TRACK_FAMILIES.map((pkg)=>({
+    layout_id:pkg.layout_id,track_id:"tr_0081",label:pkg.name,
+    track_package:pkg,year_from:pkg.year_from,year_to:pkg.year_to,
+    reference_year:pkg.reference_year,geometry_exact_era_only:true,
+    historical_status:"provisional",geometry_status:"derived_provisional",
+    track_intelligence_status:"derived_provisional",
+    lap_length_km:pkg.lap_length_km,race_direction:pkg.race_direction,
+    start_finish_progress:pkg.intelligence.start_finish_progress,
+    sector_boundaries:pkg.intelligence.sector_boundaries,
+    pit_entry_progress:null,pit_exit_progress:null,
+    environment_view_box:pkg.functional.view_box,
+    source_label:pkg.functional.derivation,
+  })),
+  {"layout_id":"tr_0081_provisional","track_id":"tr_0081","geometry_exact_era_only":true,"label":"Brands Hatch","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0041_provisional","track_id":"tr_0041","label":"Hockenheim","year_from":2002,"year_to":2002,"reference_year":2002,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2002 Circuit"},
   {"layout_id":"tr_0022_provisional","track_id":"tr_0022","label":"Austria","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0058_provisional","track_id":"tr_0058","label":"Zandvoort","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
