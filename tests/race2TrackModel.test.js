@@ -505,3 +505,33 @@ test("Long Beach Race TrackModel uses sourced F1 distances, no visual-controlled
     assert.equal(m.geometry.source,"none");
   }
 });
+
+test("Zolder F1 TrackModel shares 1973/1980 periods without SVG corner-speed physics",()=>{
+  const core={track_id:"tr_0026",track_name:"Zolder",lap_length_km:4.262};
+  for(const [year,metres,id,laps] of [
+    [1973,4220,"tr_0026_1972_1974",70],
+    [1975,4262,"tr_0026_1975_1985",70],
+    [1980,4262,"tr_0026_1975_1985",72],
+    [1982,4262,"tr_0026_1975_1985",70],
+    [1984,4262,"tr_0026_1975_1985",70]
+  ]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0026",year,laps}});
+    assert.equal(m.trackId,"tr_0026");
+    assert.equal(m.layoutId,id,String(year));
+    assert.equal(m.lengthM,metres,String(year));
+    assert.equal(m.laps,laps,String(year));
+    assert.equal(m.raceDirection,"clockwise");
+    assert.equal(m.resolution.exact,true);
+    assert.equal(m.geometry.source,"f1track_functional");
+    assert.equal(m.geometry.quality,"derived_provisional");
+    assert.ok(m.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(m,metres-1));
+    assert.equal(m.speedProfile.source,"neutral");
+    assert.equal(m.pitLane.available,false);
+  }
+  const old=buildTrackModel({activeYear:1990,coreTracks:[core]},
+    {gp:{track_id:"tr_0026",year:1990}});
+  assert.equal(old.geometry.source,"none");
+  assert.equal(old.racingLine,null);
+});
