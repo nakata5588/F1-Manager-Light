@@ -116,3 +116,22 @@ test("RW8.12 seed scopes official Practice setup without changing the input cont
   assert.equal(a.results[0].programme_id,b.results[0].programme_id);
   assert.equal(a.results[0].target_setup.aeroBalance,b.results[0].target_setup.aeroBalance);
 });
+
+test("managed canonical stints carry setup forward and scale fatigue to elapsed running",()=>{
+  const full=simulateCanonicalPractice(input()).results[0];
+  const firstInput=input();
+  firstInput.entrants=[{...firstInput.entrants[0],stintMinutes:10}];
+  const first=simulateCanonicalPractice(firstInput);
+  const firstRow=first.results[0];
+  assert.ok(firstRow.fatigue_cost<full.fatigue_cost);
+  assert.ok(firstRow.setup_knowledge<full.setup_knowledge);
+  const secondInput=structuredClone(firstInput);
+  secondInput.weekendKey+=":stint:2";
+  secondInput.entrants[0].priorSetup=firstRow.setup;
+  secondInput.entrants[0].priorKnowledge=firstRow.setup_knowledge;
+  secondInput.entrants[0].conditionBefore=first.effects.conditionByDriver.D1;
+  const second=simulateCanonicalPractice(secondInput).results[0];
+  assert.deepEqual(second.initial_setup,firstRow.setup);
+  assert.ok(second.setup_knowledge>firstRow.setup_knowledge);
+  assert.ok(second.fatigue_before>=firstRow.fatigue_after);
+});
