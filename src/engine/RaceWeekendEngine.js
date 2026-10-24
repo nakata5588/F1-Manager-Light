@@ -329,16 +329,36 @@ export function runManagedPracticeStint(gs,{driverId,minutes=10}={}){
 /** Tick shared Practice clock: a selected car runs one canonical minute;
  * no selected car consumes session time without awarding imaginary results.
  */
-export function advanceManagedPracticeMinute(gs,{driverId=null}={}){
-  const w=gs?.raceWeekendState;
-  if(!w||w.phase!=="practice")return gs;
-  const state=managedPracticeState(w);
-  if(state.elapsed_minutes>=state.duration_minutes)return gs;
-  const id=String(driverId||"");
-  if(id&&canRunPracticeStint(state,id,1)){
-    return runManagedPracticeStint(gs,{driverId:id,minutes:1});
+export function advanceManagedPracticeMinute(gs,{driverIds=[],driverId=null}={}){
+  const weekend=gs?.raceWeekendState;
+  if(!weekend||weekend.phase!=="practice")return gs;
+  const initial=managedPracticeState(weekend);
+  if(initial.elapsed_minutes>=initial.duration_minutes)return gs;
+  const entrants=new Set((gs?.raceEntryState?.entries||[]).map(entry=>String(entry.driver_id)));
+  const requested=Array.isArray(driverIds)?driverIds:[driverId];
+  const ids=[...new Set((requested.length?requested:[driverId]).map(String))]
+    .filter(id=>id&&id!=="null"&&entrants.has(id)&&!initial.repairs?.[id]);
+  if(!ids.length){
+    return {...gs,raceWeekendState:{...weekend,managed_practice:advancePracticeClock(initial,1)}};
   }
-  return {...gs,raceWeekendState:{...w,managed_practice:advancePracticeClock(state,1)}};
+  // Both cars share the same minute. Each simulator call receives the same
+  // starting clock, but inherits the preceding call's independent car effects.
+  let next=gs;
+  let ran=0;
+  for(const id of ids){
+    const current=managedPracticeState(next.raceWeekendState);
+    const withSharedStart={...next,raceWeekendState:{
+      ...next.raceWeekendState,
+      managed_practice:{...current,elapsed_minutes:initial.elapsed_minutes},
+    }};
+    const after=runManagedPracticeStint(withSharedStart,{driverId:id,minutes:1});
+    if(after!==withSharedStart){next=after;ran++;}
+  }
+  if(!ran)return {...gs,raceWeekendState:{...weekend,managed_practice:advancePracticeClock(initial,1)}};
+  return {...next,raceWeekendState:{...next.raceWeekendState,managed_practice:{
+    ...next.raceWeekendState.managed_practice,
+    elapsed_minutes:initial.elapsed_minutes+1,
+  }}};
 }
 export function repairManagedPracticeCar(gs,{driverId,minutes=15}={}){
   const w=gs?.raceWeekendState;
@@ -430,6 +450,8 @@ export function completePracticeSession(gs,{gp}={}){
         ...last,
         preparation_gain:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.preparation_gain||0),0)*10)/10,
         fatigue_cost:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.fatigue_cost||0),0)*10)/10,
+        qualifying_bonus:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.qualifying_bonus||0),0)*100)/100,
+        race_bonus:Math.round(stints.reduce((sum,row)=>sum+Number(row.outcome?.race_bonus||0),0)*100)/100,
         managed_stints:stints.length,
       };
     }).filter(Boolean);
