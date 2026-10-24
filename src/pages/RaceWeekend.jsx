@@ -701,7 +701,8 @@ export default function RaceWeekend(){
   const [busy,setBusy]=useState(false);
   const [practiceClockRunning,setPracticeClockRunning]=useState(false);
   const [practiceClockSpeed,setPracticeClockSpeed]=useState(1);
-  const [practiceActiveDriver,setPracticeActiveDriver]=useState("");
+  const [practiceActiveDrivers,setPracticeActiveDrivers]=useState([]);
+  const [practiceHistoryExpanded,setPracticeHistoryExpanded]=useState({});
   const [practiceClockOffsetSec,setPracticeClockOffsetSec]=useState(0);
   const practiceClockAccumulatedRef=useRef(0);
   const [activeWindow,setActiveWindow]=useState("overview");
@@ -731,13 +732,13 @@ export default function RaceWeekend(){
       advancing=true;
       practiceClockAccumulatedRef.current-=60;
       try{
-        const state=await advanceManagedMinute(practiceActiveDriver||null);
+        const state=await advanceManagedMinute(practiceActiveDrivers);
         if(!state||state.elapsed_minutes>=state.duration_minutes)setPracticeClockRunning(false);
       }catch(error){console.error("[Practice] clock advancement failed",error);setPracticeClockRunning(false);}
       finally{advancing=false;}
     },1000);
     return ()=>window.clearInterval(timer);
-  },[practiceClockRunning,practiceClockSpeed,practiceActiveDriver,weekend?.phase,advanceManagedMinute]);
+  },[practiceClockRunning,practiceClockSpeed,practiceActiveDrivers,weekend?.phase,advanceManagedMinute]);
   const usesCanonicalRaceRuntime=raceWeekendUsesCanonicalRuntime(gs);
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
@@ -1444,7 +1445,7 @@ export default function RaceWeekend(){
           <div className="flex flex-wrap justify-between gap-2">
             <div>
               <div className="font-semibold text-cyan-200">Manage Practice — running session trial</div>
-              <div className="text-xs text-slate-400">Practice runs on a shared clock. Select the active driver, then Play. One-minute canonical slices accumulate setup, fatigue, preparation and wear. This trial supports one active player car at a time.</div>
+              <div className="text-xs text-slate-400">Practice runs on a shared clock. Select the active driver, then Play. One-minute canonical slices accumulate setup, fatigue, preparation and wear. Both team cars can run simultaneously on the same shared clock. One-minute records are not completed laps.</div>
             </div>
             <span className="text-sm text-slate-300">{Number(weekend.managed_practice?.elapsed_minutes||0)} / {Number(weekend.managed_practice?.duration_minutes||60)} min completed</span>
           </div>
@@ -1452,8 +1453,8 @@ export default function RaceWeekend(){
             <span className="rounded bg-slate-900 px-3 py-2 font-mono text-base text-white">Remaining {formatPracticeClock((Number(weekend.managed_practice?.duration_minutes||60)-Number(weekend.managed_practice?.elapsed_minutes||0))*60-practiceClockOffsetSec)}</span>
             <button className="rounded bg-cyan-700 px-3 py-2 text-white disabled:opacity-40" disabled={busy||Number(weekend.managed_practice?.elapsed_minutes||0)>=Number(weekend.managed_practice?.duration_minutes||60)} onClick={()=>setPracticeClockRunning(v=>!v)}>{practiceClockRunning?"Pause":"Play"}</button>
             {[1,4,8,16].map(speed=><button key={speed} className={"rounded px-2 py-2 "+(practiceClockSpeed===speed?"bg-cyan-700 text-white":"bg-slate-800 text-slate-300")} onClick={()=>setPracticeClockSpeed(speed)}>x{speed}</button>)}
-            <button className="rounded bg-slate-800 px-3 py-2 text-slate-300" onClick={()=>setPracticeActiveDriver("")}>Keep cars in garage</button>
-            <span className="text-slate-400">{practiceActiveDriver?"On track: "+driverName(drivers,practiceActiveDriver):"No player car on track"}</span>
+            <button className="rounded bg-slate-800 px-3 py-2 text-slate-300" onClick={()=>setPracticeActiveDrivers([])}>Keep cars in garage</button>
+            <span className="text-slate-400">{practiceActiveDrivers.length?"On track: "+practiceActiveDrivers.map(id=>driverName(drivers,id)).join(" + "):"No player car on track"}</span>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {playerEntrants.map(entry=>{
@@ -1463,15 +1464,16 @@ export default function RaceWeekend(){
               const remaining=Number(state.duration_minutes||60)-Number(state.elapsed_minutes||0);
               const stints=(state.stints||[]).filter(stint=>stint.driver_id===did);
               return <div key={did} className="rounded-lg border border-white/10 bg-[#171d27] p-3">
-                <div className="font-medium">{driverName(drivers,did)} · {stints.length} stints</div>
+                <div className="font-medium">{driverName(drivers,did)} · {stints.length} minute records</div>
                 <div className="mt-1 text-xs text-slate-400">{damaged?"Car requires inspection: "+state.repairs[did]:remaining<10?"Not enough session time for a 10-minute stint":"Ready for another stint"}</div>
                 <div className="mt-2 flex gap-2">
-                  <button className="rounded bg-cyan-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||damaged||remaining<1} onClick={()=>setPracticeActiveDriver(practiceActiveDriver===did?"":did)}>{practiceActiveDriver===did?"Return to garage":"Send on track"}</button>
+                  <button className="rounded bg-cyan-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||damaged||remaining<1} onClick={()=>setPracticeActiveDrivers(ids=>ids.includes(did)?ids.filter(id=>id!==did):[...ids,did])}>{practiceActiveDrivers.includes(did)?"Return to garage":"Send on track"}</button>
                   {damaged&&<button className="rounded bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||remaining<15} title={remaining<15?"Insufficient session time for repair":""} onClick={()=>perform(()=>repairManagedCar(did,15))}>Repair · 15 min</button>}
                 </div>
                 <div className="mt-3 space-y-2">
-                  {stints.map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
-                    <div className="font-semibold">Stint {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id}</div>
+                  {stints.length>1&&<button className="text-xs text-cyan-300 underline" onClick={()=>setPracticeHistoryExpanded(previous=>({...previous,[did]:!previous[did]}))}>{practiceHistoryExpanded[did]?"Show latest only":`View all ${stints.length} minute records`}</button>}
+                  {(practiceHistoryExpanded[did]?stints:stints.slice(-1)).map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
+                    <div className="font-semibold">Minute record {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id}</div>
                     <div>Setup {Number(stint.outcome?.setup_quality||0).toFixed(1)}/100 · Knowledge {Number(stint.outcome?.setup_knowledge||0).toFixed(1)}/100</div>
                     <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-400">
                       <span>Preparation +{Number(stint.outcome?.preparation_gain||0).toFixed(1)}</span>
