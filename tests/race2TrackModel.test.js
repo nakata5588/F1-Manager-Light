@@ -535,3 +535,15 @@ test("Zolder F1 TrackModel shares 1973/1980 periods without SVG corner-speed phy
   assert.equal(old.geometry.source,"none");
   assert.equal(old.racingLine,null);
 });
+
+test("1980 Argentina canonical lap limit is 53, while a saved race retains its own distance",()=>{
+  const gs=argentinaState();
+  gs.trackLayoutByYear[0].laps=51;
+  const gp={track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1980,race_date:"1980-01-13"};
+  const next=buildTrackModel(gs,{gp});
+  assert.equal(next.lengthM,5968);
+  assert.equal(next.laps,53);
+  const saved=buildTrackModel(gs,{gp,trackSnapshot:{lengthM:5968,laps:51}});
+  assert.equal(saved.laps,51,"in-progress saved race must not change race distance");
+});
+

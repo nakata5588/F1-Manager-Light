@@ -4,6 +4,7 @@
 // Global data is editorial/reference data; the returned pack is only the
 // playable state at the chosen starting year.
 import { driverRoleSlot, isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
+import { historicalGrandPrixLaps } from "./historicalGrandPrixLaps.js";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -442,6 +443,11 @@ function calendarRows(rows,year){
   return rowsAtYear(rows,year)
     .map((r,index)=>{
       const copy={...clean(r),year,season_year:year,round:asNum(pick(r,["round"],index+1),index+1)};
+      const explicitLaps=asNum(pick(r,["laps","race_laps","scheduled_laps"],NaN),NaN);
+      // Excel cells may be wrapped ({value,result}); resolve against clean scalar keys.
+      const sourcedLaps=historicalGrandPrixLaps(copy,year);
+      if(Number.isInteger(explicitLaps)&&explicitLaps>0)copy.laps=explicitLaps;
+      else if(sourcedLaps!=null)copy.laps=sourcedLaps;
       for(const k of ["winner","winner_id","winner_driver_id","winner_team_id","result","results","classification","points","champion","race_winner"])delete copy[k];
       return copy;
     })

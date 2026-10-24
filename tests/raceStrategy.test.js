@@ -875,3 +875,26 @@ test("Zolder historical lap lengths used by Strategy, 1980 official 72 × 4.262 
   // Historical 1980 official length: 306.864 km.
   // Explicit GP laps (72) must override generic core_tracks.laps_default (70).
 });
+
+test("1980 race strategy uses sourced Argentina 53 laps, not generic 305 km",()=>{
+  const gs={activeYear:1980,trackLayoutByYear:[{
+    track_id:"tr_0018",year_from:1974,year_to:1981,
+    lap_length_km:5.968,laps:51,
+  }]};
+  const gp={year:1980,round:1,track_id:"tr_0018",race_date:"1980-01-13"};
+  const track=raceTrackProfile(gs,gp);
+  assert.equal(track.lap_length_km,5.968);
+  assert.equal(track.laps,53);
+  assert.equal(track.race_distance_km,316.3);
+  assert.equal(raceTrackProfile(gs,{...gp,laps:54}).laps,54,
+    "explicit Calendar facts must remain authoritative");
+  assert.equal(raceTrackProfile({...gs,activeYear:1979},{...gp,year:1979}).laps,51,
+    "1980 facts must not apply to other eras");
+  const fixture={...gs,trackLayoutByYear:[{
+    track_id:"monaco",year_from:1974,year_to:1981,lap_length_km:3.34,laps:30,
+  }]};
+  assert.equal(raceTrackProfile(fixture,{
+    track_id:"monaco",race_date:"1980-05-18",year:1980,
+  }).laps,30,"generic tracks must not inherit real-GP distances");
+});
+

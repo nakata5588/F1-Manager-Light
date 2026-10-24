@@ -36,6 +36,9 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   ));
   assert.equal(pack.validation?.ok, true, JSON.stringify(pack.validation));
   const state = pack.state;
+  assert.deepEqual(state.calendar.map(race => Number(race.laps)),
+    [53, 40, 78, 80, 72, 76, 54, 76, 45, 54, 72, 60, 70, 59],
+    "the entire 1980 career calendar must have sourced race distances");
   const renault = state.teams.find(t => String(t.team_name).toLowerCase() === "renault");
   assert.ok(renault, "Renault must be playable in the real 1980 Season Pack");
   const gp = state.calendar[0];
@@ -110,7 +113,7 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   assert.equal(input.engineVersion, "rw2");
   assert.equal(input.year, 1980);
   assert.ok(input.track.lengthM > 4000, "do not race on a synthetic short circuit");
-  assert.ok(input.track.laps > 30, "simulate the historical full race distance");
+  assert.equal(input.track.laps, 53, "Argentina 1980 was 53 full racing laps");
   assert.equal(input.startingGrid.length, 24);
   assert.ok(input.cars.length >= 24, "all starters must have real cars");
 
