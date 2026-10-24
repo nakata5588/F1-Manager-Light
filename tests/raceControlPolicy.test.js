@@ -201,6 +201,6 @@ test("RW5.2D4.3 critical incident may escalate directly to red flag in any era",
       incident,
       weatherRow:weatherRow(),
     });
-    assert.equal(assessment.action,RED_FLAGS_ENABLED?"RED_FLAG":year>=1993?"SAFETY_CAR":"LOCAL_YELLOW");
+    assert.equal(assessment.action,RED_FLAGS_ENABLED?"RED_FLAG":"LOCAL_YELLOW");
   }
 });
