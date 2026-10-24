@@ -469,7 +469,11 @@ test("Kyalami Race TrackModel uses original and rebuilt period lengths, no carto
     assert.equal(model.resolution.exact,true);
     assert.ok(model.racingLine?.points?.length>=24);
     assert.ok(trackPoseAtDistance(model,metres-1));
-    assert.equal(model.speedProfile.source,"neutral");
+    if(year<=1985){
+      assert.equal(model.speedProfile.source,"historical_named_turn_reference_approximate");
+      assert.equal(model.speedProfile.provisional,true);
+      assert.equal(model.speedProfile.referenceTurns,9);
+    }else assert.equal(model.speedProfile.source,"neutral");
     assert.equal(model.pitLane.available,false);
   }
   for(const year of [1966,1989,1994,2000]){
@@ -647,4 +651,33 @@ test("Brands Hatch 1980 Race TrackModel has canonical 4207 metres and neutral vi
     assert.equal(model.geometry.source,"none","wrong-era artwork "+year);
     assert.equal(model.racingLine,null);
   }
+});
+
+test("Kyalami 1980 historic named-corner provisional model slows for turns, not a flat lap",()=>{
+  const gs={activeYear:1980,coreTracks:[{track_id:"tr_0067",lap_length_km:4.104}]};
+  const make=(year)=>buildTrackModel({...gs,activeYear:year},
+    {gp:{track_id:"tr_0067",year,laps:78}});
+  const a=make(1980),p=a.speedProfile;
+  assert.equal(a.layoutId,"tr_0067_original");
+  assert.equal(p.source,"historical_named_turn_reference_approximate");
+  assert.equal(p.provisional,true);
+  assert.equal(p.referenceTurns,9);
+  assert.equal(p.brakingModel,"distance_sensitive");
+  assert.equal(p.alignment,"unverified_normalized_distance_estimate");
+  assert.ok(p.samples.length>=100);
+  const low=p.samples.reduce((a,b)=>a.severity<b.severity?a:b);
+  const high=p.samples.reduce((a,b)=>a.severity>b.severity?a:b);
+  assert.ok(low.severity<0.12);
+  assert.ok(high.severity>0.78);
+  const car={speedMs:70,performance:{
+    car:{power:85,race:85,chassis:85},driver:{raceScore:85}
+  }};
+  const fast=raceTargetSpeedProfile({track:a},{...car,distanceAlongLapM:low.distanceM});
+  const slow=raceTargetSpeedProfile({track:a},{...car,distanceAlongLapM:high.distanceM});
+  assert.ok(fast.targetSpeedKmh>slow.targetSpeedKmh+75,"genuine local braking");
+  assert.ok(slow.targetSpeedKmh>=50);
+  assert.ok(fast.straightTargetKmh<=330);
+  assert.deepEqual(make(1980).speedProfile,p,"deterministic profile");
+  assert.equal(make(1993).speedProfile.source,"neutral",
+    "never reuse old Kyalami profile in rebuilt circuit");
 });

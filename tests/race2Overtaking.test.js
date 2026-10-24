@@ -295,3 +295,37 @@ test("RW61 cannot extend a stalled attempt or extend the same attempt twice",()=
   assert.equal(second.events.some(e=>e.type==="overtake_approach_extended"),false);
   assert.ok(second.events.some(e=>e.type==="overtake_failed"));
 });
+
+test("RW64 after a completed pass, same-stint rematch requires measured two-lap pace advantage",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:43,speedKmh:154.8},
+    C2:{absoluteDistanceM:108,distanceAlongLapM:108,speedMs:45,speedKmh:162}
+  }));
+  const done=resolveSimpleRacePassing(s,s.cars,{stepMs:100});
+  assert.equal(done.events.filter(e=>e.type==="overtake_completed").length,1);
+  const baseline={...s,simulationTimeMs:90000,cars:done.cars};
+  const at=(own,other)=>patch(baseline,{
+    C1:{absoluteDistanceM:2200,distanceAlongLapM:200,speedMs:48,
+      speedKmh:172.8,freeTargetSpeedKmh:205,
+      lastLapMs:own[0],previousLapMs:own[1]},
+    C2:{absoluteDistanceM:2208,distanceAlongLapM:208,speedMs:44,
+      speedKmh:158.4,freeTargetSpeedKmh:170,
+      lastLapMs:other[0],previousLapMs:other[1]}
+  });
+  const neutral=at([73400,73700],[73600,73700]);
+  assert.equal(diagnoseSimplePassGate(neutral,get(neutral,"C1")).reason,
+    "recent_pair_cooldown","one local speed inversion does not prove sustained lap pace");
+  const luckyLap=at([72000,74000],[73500,73500]);
+  assert.equal(diagnoseSimplePassGate(luckyLap,get(luckyLap,"C1")).reason,
+    "recent_pair_cooldown","single faster lap is insufficient without two-lap average");
+  const sustained=at([71600,71900],[73500,73400]);
+  assert.notEqual(diagnoseSimplePassGate(sustained,get(sustained,"C1")).reason,
+    "recent_pair_cooldown","two substantially faster official laps allow real rematch");
+  const pit={...neutral,cars:neutral.cars.map(c=>c.carId==="C1"
+    ?{...c,pitState:{...c.pitState,stopSequence:1}}:c)};
+  assert.notEqual(diagnoseSimplePassGate(pit,get(pit,"C1")).reason,
+    "recent_pair_cooldown","pit/tyre stint changes still unlock rematches");
+  assert.deepEqual(diagnoseSimplePassGate(neutral,get(neutral,"C1")),
+    diagnoseSimplePassGate(neutral,get(neutral,"C1")),
+    "gate must be pure and deterministic");
+});

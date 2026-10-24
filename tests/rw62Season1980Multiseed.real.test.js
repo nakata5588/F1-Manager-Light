@@ -19,10 +19,11 @@ import {materializeOfficialRaceRows} from "../src/engine/RaceFinalizationEngine.
 const scenarios=Object.freeze({
   argentina:{index:0,fragment:"argentin",laps:53},
   brazil:{index:1,fragment:"brazil",laps:40},
+  kyalami:{index:2,fragment:"south african",laps:78},
   monaco:{index:5,fragment:"monaco",laps:76},
 });
 const which=String(process.env.RW62_GP||"argentina").toLowerCase();
-if(!scenarios[which])throw new Error("RW62_GP must be argentina, brazil or monaco");
+if(!scenarios[which])throw new Error("RW62_GP must be argentina, brazil, kyalami or monaco");
 
 const counts=(rows,key)=>rows.reduce((out,row)=>{
   const value=String(key(row)??"unknown");
@@ -68,6 +69,8 @@ function audit(gs,input,fast,scenario,seed){
     laps:input.track.laps,lengthM:input.track.lengthM,
     entrants:input.entries.length,starters:fast.cars.length,
     tick:fast.tick,officialRaceTimeMs:fast.officialRaceTimeMs,
+    fastestRaceLapMs:Math.min(...fast.cars.map(c=>Number(c?.bestLapMs))
+      .filter(n=>Number.isFinite(n)&&n>0)),
     dnf:behaviour.finalState.dnfs,
     attempts:starts.length,completed:completed.length,failed:failed.length,
     failedReasons:behaviour.overtakes.failureReasons,
@@ -163,6 +166,16 @@ test("RW62 real 1980 multi-seed overtaking benchmark: "+which,{timeout:1_500_000
     assert.deepEqual(live.getState(),prefix,"Live/Fast parity on historical input");
     const fast=runFastRaceToEnd(prefix,{maxSteps:170_000});
     const report=audit(gs,input,fast,which,seed);
+    if(which==="kyalami"){
+      assert.equal(report.track,"tr_0067");
+      assert.equal(report.layoutSource,"historical_named_turn_reference_approximate");
+      assert.equal(report.lengthM,4104);
+      assert.ok(Number.isFinite(report.fastestRaceLapMs));
+      // Broad plausibility guard. Historic 1980 pole: 1:10.000; this is
+      // a full-race lap with fuel/traffic, NOT a qualifying lap.
+      assert.ok(report.fastestRaceLapMs>=50_000&&report.fastestRaceLapMs<=120_000,
+        "Kyalami race pace needs calibration against real 1980 timing");
+    }
     reports.push(report);
     console.log("RW62_1980_RUN="+JSON.stringify(report));
   }
