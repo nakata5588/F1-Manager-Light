@@ -547,3 +547,37 @@ test("1980 Argentina canonical lap limit is 53, while a saved race retains its o
   assert.equal(saved.laps,51,"in-progress saved race must not change race distance");
 });
 
+
+test("Monaco Race TrackModel shares physical lap facts and neutral speed for illustrative SVG",()=>{
+  const core={track_id:"tr_0056",track_name:"Circuit de Monaco",lap_length_km:3.337};
+  for(const [year,metres,id,laps] of [
+    [1950,3180,"tr_0056_1950",100],
+    [1965,3145,"tr_0056_1955_1972",100],
+    [1974,3278,"tr_0056_1973_1975",78],
+    [1980,3312,"tr_0056_1976_1985",76],
+    [1986,3328,"tr_0056_1986_1996",78],
+    [2004,3340,"tr_0056_2003_modern",78],
+    [2026,3337,"tr_0056_2003_modern",78]
+  ]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0056",year,laps}});
+    assert.equal(m.trackId,"tr_0056");
+    assert.equal(m.layoutId,id,String(year));
+    assert.equal(m.lengthM,metres,String(year));
+    assert.equal(m.laps,laps,String(year));
+    assert.equal(m.raceDirection,"clockwise");
+    assert.equal(m.resolution.exact,true);
+    assert.equal(m.geometry.source,"f1track_functional");
+    assert.equal(m.geometry.quality,"derived_provisional");
+    assert.ok(m.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(m,metres-1));
+    assert.equal(m.speedProfile.source,"neutral");
+    assert.equal(m.pitLane.available,false);
+  }
+  for(const year of [1954,1997,2002]){
+    const m=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0056",year}});
+    assert.equal(m.geometry.source,"none","missing era geometry "+year);
+    assert.equal(m.racingLine,null);
+  }
+});

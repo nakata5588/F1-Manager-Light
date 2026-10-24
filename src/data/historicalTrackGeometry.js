@@ -8,6 +8,7 @@ import { SILVERSTONE_F1TRACK_FAMILIES } from "./tracks/tr_0079_silverstone.f1tra
 import { KYALAMI_F1TRACK_FAMILIES } from "./tracks/tr_0067_kyalami.f1track.js";
 import { LONG_BEACH_F1TRACK_FAMILIES } from "./tracks/tr_0088_long_beach.f1track.js";
 import { ZOLDER_F1TRACK_FAMILIES } from "./tracks/tr_0026_zolder.f1track.js";
+import { MONACO_F1TRACK_FAMILIES } from "./tracks/tr_0056_monaco.f1track.js";
 
 const freezeGeometry=(geometry,quality)=>Object.freeze({
   ...geometry,
@@ -42,6 +43,9 @@ export const HISTORICAL_TRACK_GEOMETRY=Object.freeze({
   tr_0028_long:freezeGeometry(INTERLAGOS_LONG_F1TRACK.functional,"derived_provisional"),
   tr_0028_short:freezeGeometry(INTERLAGOS_SHORT_F1TRACK.functional,"derived_provisional"),
   ...Object.fromEntries(IMOLA_F1TRACK_FAMILIES.map((pkg)=>[
+    pkg.layout_id,freezeGeometry(pkg.functional,pkg.functional.quality)
+  ])),
+  ...Object.fromEntries(MONACO_F1TRACK_FAMILIES.map((pkg)=>[
     pkg.layout_id,freezeGeometry(pkg.functional,pkg.functional.quality)
   ])),
   ...Object.fromEntries(ZOLDER_F1TRACK_FAMILIES.map((pkg)=>[
