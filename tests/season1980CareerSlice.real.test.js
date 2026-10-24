@@ -36,6 +36,7 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   ));
   assert.equal(pack.validation?.ok, true, JSON.stringify(pack.validation));
   const state = pack.state;
+  console.log("REAL_1980_CALENDAR_DIAGNOSTIC="+JSON.stringify(state.calendar.slice(0,3)));
   assert.deepEqual(state.calendar.map(race => Number(race.laps)),
     [53, 40, 78, 80, 72, 76, 54, 76, 45, 54, 72, 60, 70, 59],
     "the entire 1980 career calendar must have sourced race distances");
