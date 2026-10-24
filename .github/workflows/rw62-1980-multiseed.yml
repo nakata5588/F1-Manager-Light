@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "tests/rw62Season1980Multiseed.real.test.js"
+      - "src/data/tracks/tr_0067_kyalami.speedProfile.js"
+      - "src/race2/track/TrackModel.js"
       - ".github/workflows/rw62-1980-multiseed.yml"
   workflow_dispatch: {}
 
@@ -18,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gp: [argentina, brazil, monaco]
+        gp: [argentina, brazil, kyalami, monaco]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
