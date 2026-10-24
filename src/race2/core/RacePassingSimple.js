@@ -76,8 +76,24 @@ const cooling=(state,a,b)=>{
     // Legacy saves lack distance stamps: retain their existing stint lock.
     if(!Number.isFinite(ledger.ownDistanceM)||!Number.isFinite(ledger.otherDistanceM))return true;
     const length=Math.max(1,n(state?.track?.lengthM,5000));
-    return n(x?.absoluteDistanceM)-ledger.ownDistanceM<length||
-      n(y?.absoluteDistanceM)-ledger.otherDistanceM<length;
+    if(n(x?.absoluteDistanceM)-ledger.ownDistanceM<length||
+       n(y?.absoluteDistanceM)-ledger.otherDistanceM<length)return true;
+    // RW64 trial: a reciprocal same-stint pass must have a sustained, actual
+    // pace advantage, not just a momentary corner-speed inversion or tow.
+    // Lap times are official RaceLapTiming values, never UI estimates.
+    // If timing is unavailable (old saves / before lap 2), the existing
+    // physical one-lap rule remains the compatibility fallback.
+    const officialLap=(car,key)=>{
+      const ms=Number(car?.[key]);
+      return Number.isFinite(ms)&&ms>0?ms:null;
+    };
+    const own=[officialLap(x,"lastLapMs"),officialLap(x,"previousLapMs")];
+    const other=[officialLap(y,"lastLapMs"),officialLap(y,"previousLapMs")];
+    if([...own,...other].some(v=>v===null))return false;
+    const ownMean=(own[0]+own[1])/2,otherMean=(other[0]+other[1])/2;
+    // A half-second over two consecutive full laps is a measured sustained
+    // recovery, not an arbitrary position/cooldown or track speed boost.
+    return ownMean+500>otherMean;
   };
   return timed(a,b)||timed(b,a)||locked(a,b)||locked(b,a);
 };
