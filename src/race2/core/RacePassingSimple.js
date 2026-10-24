@@ -67,35 +67,40 @@ const cooling=(state,a,b)=>{
   const now=n(state?.simulationTimeMs);
   const timed=(x,y)=>String(x?.battle?.lastCompletedOpponentCarId||"")===id(y)&&
     n(x?.battle?.lastCompletedOpponentCooldownUntilMs)>now;
-  const locked=(x,y)=>{
+  const ledgerFor=(x,y)=>{
     const ledger=x?.battle?.positionPassPairStints?.[id(y)];
-    if(!ledger||n(ledger.own,-1)!==stop(x)||n(ledger.other,-1)!==stop(y))return false;
-    // One whole physically driven lap by BOTH cars, rather than an entire
-    // tyre stint, protects against immediate reciprocal ping-pong. A later
-    // genuine tyre/pace advantage may then generate another normal attempt.
-    // Legacy saves lack distance stamps: retain their existing stint lock.
+    return ledger&&n(ledger.own,-1)===stop(x)&&n(ledger.other,-1)===stop(y)
+      ?ledger:null;
+  };
+  const locked=(x,y)=>{
+    const ledger=ledgerFor(x,y);
+    if(!ledger)return false;
+    // Legacy saves lack distance stamps: preserve their original stint lock.
     if(!Number.isFinite(ledger.ownDistanceM)||!Number.isFinite(ledger.otherDistanceM))return true;
     const length=Math.max(1,n(state?.track?.lengthM,5000));
-    if(n(x?.absoluteDistanceM)-ledger.ownDistanceM<length||
-       n(y?.absoluteDistanceM)-ledger.otherDistanceM<length)return true;
-    // RW64 trial: a reciprocal same-stint pass must have a sustained, actual
-    // pace advantage, not just a momentary corner-speed inversion or tow.
-    // Lap times are official RaceLapTiming values, never UI estimates.
-    // If timing is unavailable (old saves / before lap 2), the existing
-    // physical one-lap rule remains the compatibility fallback.
-    const officialLap=(car,key)=>{
-      const ms=Number(car?.[key]);
-      return Number.isFinite(ms)&&ms>0?ms:null;
-    };
-    const own=[officialLap(x,"lastLapMs"),officialLap(x,"previousLapMs")];
-    const other=[officialLap(y,"lastLapMs"),officialLap(y,"previousLapMs")];
-    if([...own,...other].some(v=>v===null))return false;
-    const ownMean=(own[0]+own[1])/2,otherMean=(other[0]+other[1])/2;
-    // A half-second over two consecutive full laps is a measured sustained
-    // recovery, not an arbitrary position/cooldown or track speed boost.
-    return ownMean+500>otherMean;
+    return n(x?.absoluteDistanceM)-ledger.ownDistanceM<length||
+      n(y?.absoluteDistanceM)-ledger.otherDistanceM<length;
   };
-  return timed(a,b)||timed(b,a)||locked(a,b)||locked(b,a);
+  if(timed(a,b)||timed(b,a)||locked(a,b)||locked(b,a))return true;
+  // RW64 trial: after both cars have driven a physical lap, only a
+  // *reciprocal* same-stint attack with evidence of sustained REAL lap
+  // pace may be eligible. This is symmetric storage, but the comparison
+  // is deliberately ATTACKER(a) versus defender(b), not both directions.
+  if(!ledgerFor(a,b)&&!ledgerFor(b,a))return false;
+  const officialLap=(car,key)=>{
+    const ms=Number(car?.[key]);
+    return Number.isFinite(ms)&&ms>0?ms:null;
+  };
+  const attacker=[officialLap(a,"lastLapMs"),officialLap(a,"previousLapMs")];
+  const defender=[officialLap(b,"lastLapMs"),officialLap(b,"previousLapMs")];
+  // Compatibility: RW60 one-physical-lap rule applies when no timing
+  // history is available (e.g., migrated in-progress saves).
+  if([...attacker,...defender].some(v=>v===null))return false;
+  const ownMean=(attacker[0]+attacker[1])/2;
+  const otherMean=(defender[0]+defender[1])/2;
+  // Half a second advantage over two completed laps: avoid corner/tow
+  // oscillations becoming repeat passes. No added speed or fake positions.
+  return ownMean+500>otherMean;
 };
 
 // One source for the small opportunity scoring calculation and diagnostics.
