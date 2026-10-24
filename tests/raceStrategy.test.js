@@ -934,3 +934,21 @@ test("Paul Ricard 1980 Strategy and TrackModel share original circuit 5.810 km f
       "Official StatsF1 1980 French GP: 54 × 5.810 km");
   }
 });
+
+test("Brands Hatch 1980 race uses 76 × 4.207 km = 319.732 km, not 1960s lap facts",()=>{
+  const core={track_id:"tr_0081",lap_length_km:4.207,laps_default:76};
+  for(const [year,km,laps] of [
+    [1964,4.265,80],[1966,4.265,80],[1974,4.265,75],
+    [1976,4.207,76],[1978,4.207,76],[1980,4.207,76],
+    [1982,4.207,76],[1984,4.207,76],[1986,4.207,75]
+  ]){
+    const profile=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0081",laps});
+    assert.equal(profile.track_id,"tr_0081");
+    assert.equal(profile.lap_length_km,km,String(year));
+    assert.equal(profile.laps,laps);
+    assert.equal(profile.race_distance_km,Number((km*laps).toFixed(1)),String(year));
+    if(year===1980)assert.equal(Number((km*laps).toFixed(3)),319.732);
+  }
+  // 1980 GB canonical event data added in #522; no second lap-count engine.
+});

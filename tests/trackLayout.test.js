@@ -83,7 +83,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0026",["exact",1980,"derived_provisional"]],
     ["tr_0056",["exact",1980,"derived_provisional"]],
     ["tr_0035",["exact",1980,"derived_provisional"]],
-    ["tr_0081",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0081",["exact",1980,"derived_provisional"]],
     ["tr_0041",["future_fallback",2002,"derived_provisional"]],
     ["tr_0022",["generic_fallback",null,"derived_provisional"]],
     ["tr_0058",["generic_fallback",null,"derived_provisional"]],
@@ -1100,6 +1100,70 @@ test("Three Paul Ricard historic SVG centerlines use regular clockwise, noncross
     const chords=pts.map((p,i)=>Math.hypot(p[0]-pts[(i+1)%pts.length][0],p[1]-pts[(i+1)%pts.length][1]));
     assert.ok(Math.max(...chords)<Math.min(...chords)*1.35,
       "arc samples, shorter corner chords "+year);
+    for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
+      if(i===0&&j===pts.length-1)continue;
+      const [a,b,c,d]=[pts[i],pts[(i+1)%pts.length],pts[j],pts[(j+1)%pts.length]];
+      assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8&&
+        orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
+
+test("Brands Hatch has two GP loop eras, one tr_0081 and 1980 4.207 km",()=>{
+  const families=TRACK_LAYOUT_ASSETS.filter(row=>row.track_id==="tr_0081");
+  assert.deepEqual(families.filter(row=>row.track_package)
+    .map(row=>[row.layout_id,row.year_from,row.year_to]),[
+      ["tr_0081_original",1960,1975],
+      ["tr_0081_1976_1987",1976,1987]
+    ]);
+  for(const [year,layout,km] of [
+    [1960,"tr_0081_original",4.265],
+    [1964,"tr_0081_original",4.265],
+    [1970,"tr_0081_original",4.265],
+    [1974,"tr_0081_original",4.265],
+    [1975,"tr_0081_original",4.265],
+    [1976,"tr_0081_1976_1987",4.207],
+    [1978,"tr_0081_1976_1987",4.207],
+    [1980,"tr_0081_1976_1987",4.207],
+    [1982,"tr_0081_1976_1987",4.207],
+    [1984,"tr_0081_1976_1987",4.207],
+    [1986,"tr_0081_1976_1987",4.207],
+    [1987,"tr_0081_1976_1987",4.207]
+  ]){
+    const resolved=resolveTrackLayout({trackId:"tr_0081",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.layout.layout_id,layout,String(year));
+    assert.equal(resolved.layout.track_id,"tr_0081");
+    assert.equal(resolved.layout.race_direction,"clockwise");
+    assert.equal(historicalTrackLapLengthKm("tr_0081",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points);
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_exit_progress,null);
+  }
+  assert.notDeepEqual(
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0081",year:1974})).geometry.points,
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0081",year:1980})).geometry.points,
+    "1976 track construction must change GP centerline");
+  for(const year of [1950,1953,1954,1959,1988,1990,2000,2026]){
+    const result=resolveTrackLayout({trackId:"tr_0081",year});
+    assert.equal(trackRuntimeGeometry(result).geometry,null,"no invented layout "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0081",year),null,"no historic F1 lap length "+year);
+  }
+});
+
+test("Brands Hatch two historic SVG shapes have 240 regular clockwise points and no crossings",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1974,1980]){
+    const pts=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0081",year})).geometry.points;
+    const area=pts.reduce((sum,a,i)=>{const b=pts[(i+1)%pts.length];return sum+a[0]*b[1]-b[0]*a[1]},0)/2;
+    assert.ok(area>0,"clockwise winding "+year);
+    const chords=pts.map((p,i)=>Math.hypot(p[0]-pts[(i+1)%pts.length][0],p[1]-pts[(i+1)%pts.length][1]));
+    assert.ok(Math.max(...chords)<Math.min(...chords)*1.12,"arclength samples "+year);
     for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
       if(i===0&&j===pts.length-1)continue;
       const [a,b,c,d]=[pts[i],pts[(i+1)%pts.length],pts[j],pts[(j+1)%pts.length]];

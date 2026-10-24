@@ -615,3 +615,36 @@ test("Paul Ricard F1 TrackModel uses actual 1980 distance and neutral historical
     assert.equal(m.racingLine,null,"no wrong era line "+year);
   }
 });
+
+test("Brands Hatch 1980 Race TrackModel has canonical 4207 metres and neutral visual physics",()=>{
+  const core={track_id:"tr_0081",track_name:"Brands Hatch",lap_length_km:4.207};
+  for(const [year,metres,layout,laps] of [
+    [1964,4265,"tr_0081_original",80],
+    [1974,4265,"tr_0081_original",75],
+    [1976,4207,"tr_0081_1976_1987",76],
+    [1980,4207,"tr_0081_1976_1987",76],
+    [1986,4207,"tr_0081_1976_1987",75],
+    [1987,4207,"tr_0081_1976_1987",76]
+  ]){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0081",year,laps}});
+    assert.equal(model.trackId,"tr_0081");
+    assert.equal(model.layoutId,layout,String(year));
+    assert.equal(model.lengthM,metres,String(year));
+    assert.equal(model.laps,laps);
+    assert.equal(model.raceDirection,"clockwise");
+    assert.equal(model.resolution.exact,true);
+    assert.equal(model.geometry.source,"f1track_functional");
+    assert.equal(model.geometry.quality,"derived_provisional");
+    assert.ok(model.racingLine?.points?.length>=24);
+    assert.ok(trackPoseAtDistance(model,metres-1));
+    assert.equal(model.speedProfile.source,"neutral");
+    assert.equal(model.pitLane.available,false);
+  }
+  for(const year of [1953,1959,1988,1995,2026]){
+    const model=buildTrackModel({activeYear:year,coreTracks:[core]},
+      {gp:{track_id:"tr_0081",year}});
+    assert.equal(model.geometry.source,"none","wrong-era artwork "+year);
+    assert.equal(model.racingLine,null);
+  }
+});
