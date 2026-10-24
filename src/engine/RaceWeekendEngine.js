@@ -3,6 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
+import { managedPracticeState, appendPracticeStint, canRunPracticeStint, markPracticeDamage, repairPracticeCar } from "./ManagedPracticeSession.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, restartLiveRaceFromRedFlag, resumeLiveRace } from "./LiveRaceEngine.js";
 import { applyRedFlagDamageRepair, applyRedFlagRestartStrategy, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
@@ -293,6 +294,37 @@ export function setPracticeProgramme(gs,{driverId,programmeId}={}){
       },
     },
   };
+}
+
+
+/** Managed Practice trial: a stint's engineering snapshot comes from the existing canonical
+ * simulator. It is a diagnostic sample, not a second official Practice classification.
+ * The cumulative-session simulation is still pending, so the final Practice retains
+ * its existing authoritative calculation.
+ */
+export function runManagedPracticeStint(gs,{driverId,minutes=10}={}){
+  const w=gs?.raceWeekendState;
+  if(!w||w.phase!=="practice")return gs;
+  const state=managedPracticeState(w);
+  if(!canRunPracticeStint(state,String(driverId),minutes))return gs;
+  const programmeId=w.practice_selections?.[String(driverId)]||"balanced";
+  const targetGp=targetGpForWeekend(w,gs?.calendar?.[Number(w.roundIndex)||0]);
+  const probe={...gs,raceWeekendState:{...w,key:`${w.key}:managed:${state.stints.length}`}};
+  const sample=simulatePracticeSession(probe,{gp:targetGp,selections:w.practice_selections||{}});
+  const result=sample.practice?.results?.find(r=>String(r.driver_id)===String(driverId));
+  if(!result)return gs;
+  let next=appendPracticeStint(state,{driverId,programmeId,minutes,outcome:{
+    setup_quality:result.setup_quality,setup_knowledge:result.setup_knowledge,
+    feedback:result.feedback,issue_note:result.issue_note||null,
+    issue_type:result.issue_type||null,weather_state:result.weather_state,
+  }});
+  if(result.issue_type)next=markPracticeDamage(next,String(driverId),result.issue_note);
+  return {...gs,raceWeekendState:{...w,managed_practice:next}};
+}
+export function repairManagedPracticeCar(gs,{driverId,minutes=15}={}){
+  const w=gs?.raceWeekendState;
+  if(!w||w.phase!=="practice")return gs;
+  return {...gs,raceWeekendState:{...w,managed_practice:repairPracticeCar(managedPracticeState(w),{driverId:String(driverId),minutes})}};
 }
 
 export function setRaceStrategy(gs,{driverId,patch}={}){
