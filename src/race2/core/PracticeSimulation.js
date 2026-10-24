@@ -227,7 +227,10 @@ export function simulateCanonicalPractice(input={}){
     for(const [key,targetValue] of Object.entries(target)){
       const initialError=(rng.next()-0.5)*38;
       initial[key]=round1(clamp(entry?.priorSetup?.[key]??targetValue+initialError));
-      final[key]=round1(clamp(targetValue+initialError*(1-progress)));
+      // Each managed stint starts at the car's actual previous setup.
+      // A fresh RNG sample is only used for an uninitialised car, not to
+      // replace the progress achieved during earlier running.
+      final[key]=round1(clamp(targetValue+(initial[key]-targetValue)*(1-progress)));
     }
 
     const quality=setupQuality(final,target);
