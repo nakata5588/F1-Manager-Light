@@ -81,7 +81,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0067",["exact",1980,"derived_provisional"]],
     ["tr_0088",["exact",1980,"derived_provisional"]],
     ["tr_0026",["exact",1980,"derived_provisional"]],
-    ["tr_0056",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0056",["exact",1980,"derived_provisional"]],
     ["tr_0035",["generic_fallback",null,"derived_provisional"]],
     ["tr_0081",["generic_fallback",null,"derived_provisional"]],
     ["tr_0041",["future_fallback",2002,"derived_provisional"]],
@@ -966,6 +966,73 @@ test("Zolder two historical SVG centrelines have clockwise winding, regular samp
       assert.equal(
         orient(a,b,c)*orient(a,b,d)<-1e-8&&orient(c,d,a)*orient(c,d,b)<-1e-8,
         false,"self crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
+
+test("Monaco six sourced F1 maps keep a single tr_0056 circuit and historical 1980 length",()=>{
+  const items=TRACK_LAYOUT_ASSETS.filter(row=>row.track_id==="tr_0056");
+  assert.deepEqual(items.filter(row=>row.track_package).map(row=>[
+    row.layout_id,row.year_from,row.year_to
+  ]),[
+    ["tr_0056_1950",1950,1950],
+    ["tr_0056_1955_1972",1955,1972],
+    ["tr_0056_1973_1975",1973,1975],
+    ["tr_0056_1976_1985",1976,1985],
+    ["tr_0056_1986_1996",1986,1996],
+    ["tr_0056_2003_modern",2003,2099]
+  ]);
+  for(const [year,id,km] of [
+    [1950,"tr_0056_1950",3.180],[1955,"tr_0056_1955_1972",3.145],
+    [1965,"tr_0056_1955_1972",3.145],[1972,"tr_0056_1955_1972",3.145],
+    [1973,"tr_0056_1973_1975",3.278],[1975,"tr_0056_1973_1975",3.278],
+    [1976,"tr_0056_1976_1985",3.312],[1980,"tr_0056_1976_1985",3.312],
+    [1985,"tr_0056_1976_1985",3.312],[1986,"tr_0056_1986_1996",3.328],
+    [1996,"tr_0056_1986_1996",3.328],[2003,"tr_0056_2003_modern",3.340],
+    [2004,"tr_0056_2003_modern",3.340],[2014,"tr_0056_2003_modern",3.340],
+    [2015,"tr_0056_2003_modern",3.337],[2019,"tr_0056_2003_modern",3.337],
+    [2021,"tr_0056_2003_modern",3.337],[2026,"tr_0056_2003_modern",3.337]
+  ]){
+    const resolved=resolveTrackLayout({trackId:"tr_0056",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.layout.layout_id,id,String(year));
+    assert.equal(resolved.layout.track_id,"tr_0056");
+    assert.equal(resolved.layout.race_direction,"clockwise");
+    assert.equal(historicalTrackLapLengthKm("tr_0056",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points);
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_exit_progress,null);
+  }
+  // A sourced line should change only with a physical redesign.
+  assert.notDeepEqual(
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0056",year:1972})).geometry.points,
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0056",year:1980})).geometry.points);
+  for(const year of [1949,1951,1954,1997,1998,2000,2002]){
+    const resolved=resolveTrackLayout({trackId:"tr_0056",year});
+    assert.equal(trackRuntimeGeometry(resolved).geometry,null,"no false geometry "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0056",year),null,"no invented km "+year);
+  }
+});
+
+test("Monaco all six SVG-derived closed centerlines are clockwise and do not self intersect",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1950,1965,1974,1980,1990,2004]){
+    const pts=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0056",year})).geometry.points;
+    const area=pts.reduce((sum,a,j)=>{const b=pts[(j+1)%pts.length];return sum+a[0]*b[1]-b[0]*a[1]},0)/2;
+    assert.ok(area>0,"clockwise SVG winding "+year);
+    const gaps=pts.map((a,j)=>Math.hypot(a[0]-pts[(j+1)%pts.length][0],a[1]-pts[(j+1)%pts.length][1]));
+    // Shorter straight chord at hairpins, despite equal arclength samples.
+    assert.ok(Math.max(...gaps)<Math.min(...gaps)*1.26,"equal arc sample "+year);
+    for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
+      if(i===0&&j===pts.length-1)continue;
+      const [a,b,c,d]=[pts[i],pts[(i+1)%pts.length],pts[j],pts[(j+1)%pts.length]];
+      assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8&&
+        orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
     }
   }
 });

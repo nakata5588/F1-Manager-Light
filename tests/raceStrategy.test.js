@@ -898,3 +898,20 @@ test("1980 race strategy uses sourced Argentina 53 laps, not generic 305 km",()=
   }).laps,30,"generic tracks must not inherit real-GP distances");
 });
 
+
+test("Monaco 1980 canonical Strategy uses 76 laps and 3.312 km, not modern 3.337",()=>{
+  const core={track_id:"tr_0056",lap_length_km:3.337,laps_default:78};
+  for(const [year,km,laps] of [
+    [1950,3.180,100],[1955,3.145,100],[1973,3.278,78],
+    [1980,3.312,76],[1985,3.312,78],[1986,3.328,78],
+    [1996,3.328,78],[2003,3.340,78],[2014,3.340,78],
+    [2015,3.337,78],[2026,3.337,78]
+  ]){
+    const profile=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0056",laps});
+    assert.equal(profile.track_id,"tr_0056");
+    assert.equal(profile.lap_length_km,km,String(year));
+    assert.equal(profile.race_distance_km,Number((km*laps).toFixed(1)),String(year));
+  }
+  // Monaco GP 18 May 1980: 76 laps * 3.312 = 251.712 km.
+});
