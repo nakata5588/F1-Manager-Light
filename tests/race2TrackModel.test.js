@@ -281,8 +281,15 @@ test("Interlagos canonical lap lengths follow historical periods without per-yea
     assert.ok(model.racingLine?.points?.length>200);
     assert.ok(trackPoseAtDistance(model,0));
     assert.ok(trackPoseAtDistance(model,lengthM-1));
-    assert.equal(model.speedProfile.source,"neutral",
-      "SVG-derived curvature is not a verified physical speed profile");
+    if(year===1979||year===1980){
+      assert.equal(model.speedProfile.source,"historical_named_turn_reference_approximate");
+      assert.equal(model.speedProfile.provisional,true);
+      assert.equal(model.speedProfile.alignment,"unverified_normalized_distance_estimate");
+      assert.ok(Math.max(...model.speedProfile.samples.map((sample)=>sample.severity))>0.8);
+    }else{
+      assert.equal(model.speedProfile.source,"neutral",
+        "SVG-derived curvature is not a verified physical speed profile");
+    }
     assert.equal(model.pitLane.available,false,
       "do not invent historic Interlagos pit lane geometry");
   }
