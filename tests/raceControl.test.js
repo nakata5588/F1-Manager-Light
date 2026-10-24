@@ -1,3 +1,4 @@
+import { RED_FLAGS_ENABLED } from "../src/engine/RaceControlPolicyEngine.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -408,7 +409,7 @@ test("RW5.2 race control activates at the incident sector, not the whole lap",()
   assert.equal(raceControlAtPoint(plan,incident.lap,incident.sector).type,period.type);
 });
 
-test("RW5.2 pre-Safety-Car era allows severe incidents to escalate to red flags",()=>{
+test("RW5.2 pre-Safety-Car era allows severe incidents to escalate to red flags",{skip:!RED_FLAGS_ENABLED?"Red Flags temporarily disabled":false},()=>{
   let red=null;
   for(let index=0;index<500&&!red;index+=1){
     const state=gs(1980);

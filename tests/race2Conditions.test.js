@@ -1,3 +1,4 @@
+import { RED_FLAGS_ENABLED } from "../src/engine/RaceControlPolicyEngine.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -184,7 +185,7 @@ test("RW8.11A severe weather assessment can recommend an era-available Red Flag"
   const first=advanceRaceConditions(state,state.cars,[]);
   const repeat=advanceRaceConditions(state,state.cars,[]);
   assert.deepEqual(first,repeat);
-  assert.equal(first.raceControlState.recommendedMode,"RED_FLAG");
+  assert.equal(first.raceControlState.recommendedMode,RED_FLAGS_ENABLED?"RED_FLAG":"SAFETY_CAR");
   assert.equal(first.raceControlState.source,"weather");
 });
 

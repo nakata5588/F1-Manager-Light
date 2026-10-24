@@ -1,3 +1,4 @@
+import { RED_FLAGS_ENABLED } from "../src/engine/RaceControlPolicyEngine.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -131,7 +132,7 @@ test("RW9C Live stepping and Fast-to-end converge on the same final RaceState",(
 });
 
 
-test("RW11F Live runner yields immediately when a canonical Red Flag is activated",()=>{
+test("RW11F Live runner yields immediately when a canonical Red Flag is activated",{skip:!RED_FLAGS_ENABLED?"Red Flags temporarily disabled by canonical policy":false},()=>{
   const extreme={
     lap:1,
     state:"STORM",

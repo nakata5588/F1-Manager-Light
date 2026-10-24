@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   incidentRaceControlAssessment,
   weatherRaceControlAssessment,
+  RED_FLAGS_ENABLED,
 } from "../src/engine/RaceControlPolicyEngine.js";
 import { raceControlRulesForYear } from "../src/engine/RaceControlEngine.js";
 
@@ -72,7 +73,7 @@ test("RW5.2D4.3 1980 extreme multi-factor weather can go directly to red flag",(
       weatherRow({raceability_hazard_index:70,raceability_band:"CRITICAL"}),
     ],
   });
-  assert.equal(assessment.action,"RED_FLAG");
+  assert.equal(assessment.action,RED_FLAGS_ENABLED?"RED_FLAG":"GREEN");
   assert.ok(assessment.severe_signals.length>=2);
   assert.ok(assessment.score>=70);
 });
@@ -91,7 +92,7 @@ test("RW5.2D4.3 1980 never inserts Safety Car or VSC for weather",()=>{
       raceability_band:"POOR",
     }),
   });
-  assert.ok(["GREEN","RED_FLAG"].includes(assessment.action));
+  assert.ok(RED_FLAGS_ENABLED?["GREEN","RED_FLAG"].includes(assessment.action):assessment.action==="GREEN");
   assert.notEqual(assessment.action,"SAFETY_CAR");
   assert.notEqual(assessment.action,"VSC");
 });
@@ -200,6 +201,6 @@ test("RW5.2D4.3 critical incident may escalate directly to red flag in any era",
       incident,
       weatherRow:weatherRow(),
     });
-    assert.equal(assessment.action,"RED_FLAG");
+    assert.equal(assessment.action,RED_FLAGS_ENABLED?"RED_FLAG":"LOCAL_YELLOW");
   }
 });
