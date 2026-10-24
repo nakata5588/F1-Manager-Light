@@ -82,7 +82,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0088",["exact",1980,"derived_provisional"]],
     ["tr_0026",["exact",1980,"derived_provisional"]],
     ["tr_0056",["exact",1980,"derived_provisional"]],
-    ["tr_0035",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0035",["exact",1980,"derived_provisional"]],
     ["tr_0081",["generic_fallback",null,"derived_provisional"]],
     ["tr_0041",["future_fallback",2002,"derived_provisional"]],
     ["tr_0022",["generic_fallback",null,"derived_provisional"]],
@@ -1028,6 +1028,78 @@ test("Monaco all six SVG-derived closed centerlines are clockwise and do not sel
     const gaps=pts.map((a,j)=>Math.hypot(a[0]-pts[(j+1)%pts.length][0],a[1]-pts[(j+1)%pts.length][1]));
     // Shorter straight chord at hairpins, despite equal arclength samples.
     assert.ok(Math.max(...gaps)<Math.min(...gaps)*1.26,"equal arc sample "+year);
+    for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
+      if(i===0&&j===pts.length-1)continue;
+      const [a,b,c,d]=[pts[i],pts[(i+1)%pts.length],pts[j],pts[(j+1)%pts.length]];
+      assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8&&
+        orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
+
+test("Paul Ricard 1980 uses original 1970–85 GP course, not short or modern",()=>{
+  const families=TRACK_LAYOUT_ASSETS.filter(row=>row.track_id==="tr_0035");
+  assert.deepEqual(families.filter(row=>row.track_package).map(row=>[
+    row.layout_id,row.year_from,row.year_to
+  ]),[
+    ["tr_0035_original",1970,1985],
+    ["tr_0035_short",1986,1990],
+    ["tr_0035_modern",2018,2022]
+  ]);
+  for(const [year,layoutId,km] of [
+    [1970,"tr_0035_original",5.810],
+    [1971,"tr_0035_original",5.810],
+    [1973,"tr_0035_original",5.810],
+    [1978,"tr_0035_original",5.810],
+    [1980,"tr_0035_original",5.810],
+    [1985,"tr_0035_original",5.810],
+    [1986,"tr_0035_short",3.813],
+    [1988,"tr_0035_short",3.813],
+    [1990,"tr_0035_short",3.813],
+    [2018,"tr_0035_modern",5.842],
+    [2019,"tr_0035_modern",5.842],
+    [2020,"tr_0035_modern",5.842],
+    [2021,"tr_0035_modern",5.842],
+    [2022,"tr_0035_modern",5.842]
+  ]){
+    const resolved=resolveTrackLayout({trackId:"tr_0035",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.layout.layout_id,layoutId,String(year));
+    assert.equal(resolved.layout.track_id,"tr_0035");
+    assert.equal(resolved.layout.race_direction,"clockwise");
+    assert.equal(historicalTrackLapLengthKm("tr_0035",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points);
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_exit_progress,null);
+  }
+  // Each source reflects a different physical road route.
+  const shapeAt=(year)=>trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0035",year})).geometry.points;
+  assert.notDeepEqual(shapeAt(1980),shapeAt(1988));
+  assert.notDeepEqual(shapeAt(1988),shapeAt(2019));
+  assert.notDeepEqual(shapeAt(1980),shapeAt(2019));
+  for(const year of [1969,1991,1995,2000,2005,2017,2023,2026]){
+    const resolved=resolveTrackLayout({trackId:"tr_0035",year});
+    assert.equal(trackRuntimeGeometry(resolved).geometry,null,"no wrong era rendering "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0035",year),null,"no invented F1 lap length "+year);
+  }
+});
+
+test("Three Paul Ricard historic SVG centerlines use regular clockwise, noncrossing sampling",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1980,1988,2019]){
+    const pts=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0035",year})).geometry.points;
+    const winding=pts.reduce((sum,p,i)=>{
+      const q=pts[(i+1)%pts.length];return sum+p[0]*q[1]-q[0]*p[1];
+    },0)/2;
+    assert.ok(winding>0,"clockwise winding "+year);
+    const chords=pts.map((p,i)=>Math.hypot(p[0]-pts[(i+1)%pts.length][0],p[1]-pts[(i+1)%pts.length][1]));
+    assert.ok(Math.max(...chords)<Math.min(...chords)*1.35,
+      "arc samples, shorter corner chords "+year);
     for(let i=0;i<pts.length;i++)for(let j=i+2;j<pts.length;j++){
       if(i===0&&j===pts.length-1)continue;
       const [a,b,c,d]=[pts[i],pts[(i+1)%pts.length],pts[j],pts[(j+1)%pts.length]];

@@ -915,3 +915,22 @@ test("Monaco 1980 canonical Strategy uses 76 laps and 3.312 km, not modern 3.337
   }
   // Monaco GP 18 May 1980: 76 laps * 3.312 = 251.712 km.
 });
+
+test("Paul Ricard 1980 Strategy and TrackModel share original circuit 5.810 km facts",()=>{
+  const core={track_id:"tr_0035",lap_length_km:5.842,laps_default:53};
+  for(const [year,lengthKm,laps] of [
+    [1971,5.810,55],[1975,5.810,54],[1980,5.810,54],
+    [1983,5.810,54],[1985,5.810,53],
+    [1986,3.813,80],[1990,3.813,80],
+    [2018,5.842,53],[2019,5.842,53],[2022,5.842,53]
+  ]){
+    const result=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0035",laps});
+    assert.equal(result.track_id,"tr_0035");
+    assert.equal(result.lap_length_km,lengthKm,String(year));
+    assert.equal(result.laps,laps,String(year));
+    assert.equal(result.race_distance_km,Number((laps*lengthKm).toFixed(1)),String(year));
+    if(year===1980)assert.equal(Number((lengthKm*laps).toFixed(3)),313.740,
+      "Official StatsF1 1980 French GP: 54 × 5.810 km");
+  }
+});
