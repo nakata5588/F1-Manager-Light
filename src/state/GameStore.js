@@ -1923,6 +1923,16 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.managed_practice||null;
   },
 
+  advanceManagedPracticeMinute: async (driverId=null) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.advanceManagedPracticeMinute(gs,{driverId});
+    if(next===gs)return gs?.raceWeekendState?.managed_practice||null;
+    set({gameState:next});
+    checkpointRaceWeekendState(next);
+    return next?.raceWeekendState?.managed_practice||null;
+  },
+
   repairManagedPracticeCar: async (driverId,minutes=15) => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
