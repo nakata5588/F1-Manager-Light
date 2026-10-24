@@ -3,7 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
-import { managedPracticeState, appendPracticeStint, canRunPracticeStint, markPracticeDamage, repairPracticeCar } from "./ManagedPracticeSession.js";
+import { managedPracticeState, appendPracticeStint, canRunPracticeStint, markPracticeDamage, repairPracticeCar, advancePracticeClock } from "./ManagedPracticeSession.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, restartLiveRaceFromRedFlag, resumeLiveRace } from "./LiveRaceEngine.js";
 import { applyRedFlagDamageRepair, applyRedFlagRestartStrategy, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
@@ -325,6 +325,20 @@ export function runManagedPracticeStint(gs,{driverId,minutes=10}={}){
   let next=appendPracticeStint(state,{driverId:id,programmeId,minutes,outcome:result});
   if(result.issue_type)next=markPracticeDamage(next,id,result.issue_note);
   return {...simulated.gameState,raceWeekendState:{...w,managed_practice:next}};
+}
+/** Tick shared Practice clock: a selected car runs one canonical minute;
+ * no selected car consumes session time without awarding imaginary results.
+ */
+export function advanceManagedPracticeMinute(gs,{driverId=null}={}){
+  const w=gs?.raceWeekendState;
+  if(!w||w.phase!=="practice")return gs;
+  const state=managedPracticeState(w);
+  if(state.elapsed_minutes>=state.duration_minutes)return gs;
+  const id=String(driverId||"");
+  if(id&&canRunPracticeStint(state,id,1)){
+    return runManagedPracticeStint(gs,{driverId:id,minutes:1});
+  }
+  return {...gs,raceWeekendState:{...w,managed_practice:advancePracticeClock(state,1)}};
 }
 export function repairManagedPracticeCar(gs,{driverId,minutes=15}={}){
   const w=gs?.raceWeekendState;
