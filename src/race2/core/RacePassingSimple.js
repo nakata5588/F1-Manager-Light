@@ -69,7 +69,15 @@ const cooling=(state,a,b)=>{
     n(x?.battle?.lastCompletedOpponentCooldownUntilMs)>now;
   const locked=(x,y)=>{
     const ledger=x?.battle?.positionPassPairStints?.[id(y)];
-    return Boolean(ledger&&n(ledger.own,-1)===stop(x)&&n(ledger.other,-1)===stop(y));
+    if(!ledger||n(ledger.own,-1)!==stop(x)||n(ledger.other,-1)!==stop(y))return false;
+    // One whole physically driven lap by BOTH cars, rather than an entire
+    // tyre stint, protects against immediate reciprocal ping-pong. A later
+    // genuine tyre/pace advantage may then generate another normal attempt.
+    // Legacy saves lack distance stamps: retain their existing stint lock.
+    if(!Number.isFinite(ledger.ownDistanceM)||!Number.isFinite(ledger.otherDistanceM))return true;
+    const length=Math.max(1,n(state?.track?.lengthM,5000));
+    return n(x?.absoluteDistanceM)-ledger.ownDistanceM<length||
+      n(y?.absoluteDistanceM)-ledger.otherDistanceM<length;
   };
   return timed(a,b)||timed(b,a)||locked(a,b)||locked(b,a);
 };
@@ -149,7 +157,8 @@ function opportunity(state,a,occupied,sectors){
   const roll=rand(state,"attempt:"+Math.floor(n(state?.simulationTimeMs)/1000)+":"+id(a)+":"+id(b));
   if(roll>=probability)return no("probability_roll");
   return {probe:{...probe,eligible:true,reason:"eligible"},
-    pass:{a,b,gapM:nearest.gapM,closing,probability,roll,tow,diff,strategyEdge}};
+    pass:{a,b,gapM:nearest.gapM,closing,probability,roll,tow,diff,strategyEdge,
+      factors}};
 }
 export function diagnoseSimplePassGate(state,a,{
   allowOvertaking=true,blockedSectors=[],
@@ -231,11 +240,13 @@ function processExisting(state,proposed,stepMs,sectors){
       if(pass.kind==="position"){
         a={...a,battle:{...a.battle,positionPassPairStints:{
           ...(a.battle?.positionPassPairStints||{}),
-          [id(b)]:{own:stop(a),other:stop(b)},
+          [id(b)]:{own:stop(a),other:stop(b),
+            ownDistanceM:n(a.absoluteDistanceM),otherDistanceM:n(b.absoluteDistanceM)},
         }}};
         b={...b,battle:{...b.battle,positionPassPairStints:{
           ...(b.battle?.positionPassPairStints||{}),
-          [id(a)]:{own:stop(b),other:stop(a)},
+          [id(a)]:{own:stop(b),other:stop(a),
+            ownDistanceM:n(b.absoluteDistanceM),otherDistanceM:n(a.absoluteDistanceM)},
         }}};
       }
       bypass.add(pair);
@@ -300,7 +311,8 @@ export function resolveSimpleRacePassing(state,proposedCars,{
   for(const old of candidates){
     const result=opportunity(state,old,occupied,sectors);
     if(!result.pass)continue;
-    const {a:preA,b:preB,gapM,closing,probability,roll,tow,diff,strategyEdge}=result.pass;
+    const {a:preA,b:preB,gapM,closing,probability,roll,tow,diff,strategyEdge,
+      factors}=result.pass;
     let a=pick(cars,id(preA)),b=pick(cars,id(preB));
     if(!a||!b)continue;
     const attempt=[state?.weekendKey||"race",state?.tick||0,id(a),id(b)].join(":");
@@ -319,6 +331,9 @@ export function resolveSimpleRacePassing(state,proposedCars,{
       closingPotentialMs:round(closing),durationMs:round(duration),
       driverEdge:round(diff.driverEdge),carEdge:round(diff.carEdge),
       strategyEdge:round(strategyEdge),towStrength:round(tow?.strength),
+      attackerPaceMode:factors.attackerPace,defenderPaceMode:factors.defenderPace,
+      tyreGripEdge:factors.tyreGripEdge,tyreConditionEdge:factors.tyreConditionEdge,
+      damageEdge:factors.damageEdge,opportunityContributions:factors.contributions,
       towBonusKmh:round(tow?.targetBonusKmh),phase:"approach",
       trackPhase:Math.max(n(preA?.effectiveCornerSeverity),
         n(preB?.effectiveCornerSeverity))>0.3?"corner":"straight",
