@@ -5,7 +5,12 @@
 // actually exist in a given era. It does not implement Red Flag suspension,
 // restart or work-under-red lifecycle; those belong to D4.4-D4.6.
 
-// Temporary gameplay gate: avoid announcing a race stoppage until the\n// canonical suspension/restart and Live/Autosim behaviour are validated.\n// Keep safety-car, VSC and local-yellow decisions operational.\nexport const RED_FLAGS_ENABLED=false;\n\nconst clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
+// Temporary gameplay gate: avoid announcing a race stoppage until the
+// canonical suspension/restart and Live/Autosim behaviour are validated.
+// Keep safety-car, VSC and local-yellow decisions operational.
+export const RED_FLAGS_ENABLED=false;
+
+const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const round=(v,digits=3)=>{
   const p=10**digits;
