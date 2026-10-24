@@ -1486,7 +1486,7 @@ export default function RaceWeekend(){
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session review</div>
             <h3 className="mt-1 text-lg font-semibold">Practice Complete</h3>
-            <p className="text-sm text-slate-400 mt-1">These are gameplay indices and session outcomes, not literal real-world percentages.</p>
+            <p className="text-sm text-slate-400 mt-1">Session outcomes and setup estimates. Weather relevance indicates similarity between Practice conditions and the forecast session, not driver performance.</p>
           </div>
           {weekend.phase==="practice_complete"&&<button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
             {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to Qualifying":"Advance to Qualifying"}
@@ -1538,10 +1538,17 @@ export default function RaceWeekend(){
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded bg-emerald-500/10 p-2 text-emerald-300"><div className="text-[10px] uppercase opacity-70">Setup quality</div><div className="text-lg font-bold">{Math.round(row.setup_quality)}%</div></div>
-                <div className="rounded bg-blue-500/10 p-2 text-blue-300"><div className="text-[10px] uppercase opacity-70">Setup knowledge</div><div className="text-lg font-bold">{Math.round(row.setup_knowledge)}%</div></div>
-                <div className="rounded bg-cyan-500/10 p-2 text-cyan-300"><div className="text-[10px] uppercase opacity-70">Race relevance</div><div className="text-lg font-bold">{Number(row.race_weather_relevance??0).toFixed(0)}%</div></div>
-                <div className="rounded bg-violet-500/10 p-2 text-violet-300"><div className="text-[10px] uppercase opacity-70">Qualifying relevance</div><div className="text-lg font-bold">{Number(row.qualifying_weather_relevance??0).toFixed(0)}%</div></div>
+                <div className="rounded bg-emerald-500/10 p-2 text-emerald-300"><div className="text-[10px] uppercase opacity-70" title="Estimated closeness of the current car setup to the circuit target.">Setup quality</div><div className="text-lg font-bold">{Math.round(row.setup_quality)}%</div></div>
+                <div className="rounded bg-blue-500/10 p-2 text-blue-300"><div className="text-[10px] uppercase opacity-70" title="How confidently the team has learned the setup target during Practice.">Setup knowledge</div><div className="text-lg font-bold">{Math.round(row.setup_knowledge)}%</div></div>
+                <div className="rounded bg-cyan-500/10 p-2 text-cyan-300"><div className="text-[10px] uppercase opacity-70" title="Weather similarity between Practice and Race; not race pace or performance.">Race weather similarity</div><div className="text-lg font-bold">{Number(row.race_weather_relevance??0).toFixed(0)}%</div></div>
+                <div className="rounded bg-violet-500/10 p-2 text-violet-300"><div className="text-[10px] uppercase opacity-70" title="Weather similarity between Practice and Qualifying; not qualifying pace or performance.">Qualifying weather similarity</div><div className="text-lg font-bold">{Number(row.qualifying_weather_relevance??0).toFixed(0)}%</div></div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-400/[0.04] px-3 py-2 text-xs text-slate-300">
+                <div className="font-semibold text-sky-300">Engineering debrief</div>
+                <p className="mt-1">{row.feedback||"No specific setup adjustment identified."}</p>
+                <p className="mt-1 text-slate-400">{Number(row.setup_knowledge||0)<75?"Setup knowledge is still limited; treat setup estimates with caution. ":"Setup learning provides a stronger basis for the next session. "}{Number(row.race_weather_relevance??0)<60?"Race conditions differ substantially from Practice; race-pace preparation may transfer less reliably. ":"Race weather is relatively similar to Practice conditions. "}{Number(row.qualifying_weather_relevance??0)<60?"Qualifying conditions may also differ; be cautious when interpreting one-lap gains.":"Qualifying weather is relatively similar to Practice conditions."}</p>
+                <p className="mt-1 text-slate-500">Advisory only: no automatic setup change, tyre forecast or reliability repair has been applied.</p>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
