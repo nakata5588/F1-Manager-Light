@@ -1407,7 +1407,7 @@ export default function RaceWeekend(){
             <p className="text-sm text-slate-400 mt-1">Choose what each car should learn from Practice. The programme changes mileage, fatigue, wear and the type of preparation gained.</p>
           </div>
           <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runPractice)}>
-            {busy?"Running…":"Run Practice"}
+            {busy?"Running…":"Quick Simulate & Finish Practice"}
           </button>
         </div>
 
@@ -1415,7 +1415,7 @@ export default function RaceWeekend(){
           <div className="flex flex-wrap justify-between gap-2">
             <div>
               <div className="font-semibold text-cyan-200">Manage Practice — stint trial</div>
-              <div className="text-xs text-slate-400">Engineering snapshots from the Practice core; official cumulative stint effects are still in development.</div>
+              <div className="text-xs text-slate-400">Experimental stint outcomes (setup and incident diagnostics) from the Practice core. These do not yet accumulate into final performance, wear or fatigue. Finishing uses the existing full-session simulation.</div>
             </div>
             <span className="text-sm text-slate-300">{Number(weekend.managed_practice?.elapsed_minutes||0)} / {Number(weekend.managed_practice?.duration_minutes||60)} min</span>
           </div>
@@ -1431,7 +1431,7 @@ export default function RaceWeekend(){
                 <div className="mt-1 text-xs text-slate-400">{damaged?"Car requires inspection: "+state.repairs[did]:remaining<10?"Not enough session time for a 10-minute stint":"Ready for another stint"}</div>
                 <div className="mt-2 flex gap-2">
                   <button className="rounded bg-cyan-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||damaged||remaining<10} onClick={()=>perform(()=>runManagedStint(did,10))}>Run 10-min stint</button>
-                  {damaged&&<button className="rounded bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||remaining<15} onClick={()=>perform(()=>repairManagedCar(did,15))}>Inspect / repair · 15 min</button>}
+                  {damaged&&<button className="rounded bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||remaining<15} title={remaining<15?"Insufficient session time for repair":""} onClick={()=>perform(()=>repairManagedCar(did,15))}>Repair · 15 min</button>}
                 </div>
                 <div className="mt-3 space-y-2">
                   {stints.map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
