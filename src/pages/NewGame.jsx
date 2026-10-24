@@ -265,7 +265,7 @@ export default function NewGame() {
     if(step!==3)return new Map();
     return newGameTeamPreviews(gameState);
   },[step,gameState?.activeYear,gameState?.seasonPackMeta?.year,teamsForYear]);
-  const rankedTeamsForYear=[...teamsForYear].sort((a,b)=>{ const pa=teamPreviews.get(getTeamId(a))?.championshipProjection; const pb=teamPreviews.get(getTeamId(b))?.championshipProjection; return (Number(pa?.rank)||999)-(Number(pb?.rank)||999) || (Number(pb?.score)||0)-(Number(pa?.score)||0) || String(getTeamDisplayName?.(a)||'').localeCompare(String(getTeamDisplayName?.(b)||''); });
+  const rankedTeamsForYear=[...teamsForYear].sort((a,b)=>{ const pa=teamPreviews.get(getTeamId(a))?.championshipProjection; const pb=teamPreviews.get(getTeamId(b))?.championshipProjection; return (Number(pa?.nominalPosition)||999)-(Number(pb?.nominalPosition)||999) || (Number(pb?.score)||0)-(Number(pa?.score)||0) || String(getTeamDisplayName?.(a)||'').localeCompare(String(getTeamDisplayName?.(b)||''); });
   const selectedTeamPreview=selectedTeam?teamPreviews.get(getTeamId(selectedTeam))||null:null;
   const managerPreview=useMemo(
     ()=>createManagerProfile(manager,{year:+year,team:selectedTeam||{name:teamId==="create"?"New Team":"Unattached"}}),
