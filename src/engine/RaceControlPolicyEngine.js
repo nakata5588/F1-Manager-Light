@@ -5,7 +5,7 @@
 // actually exist in a given era. It does not implement Red Flag suspension,
 // restart or work-under-red lifecycle; those belong to D4.4-D4.6.
 
-const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
+// Temporary gameplay gate: avoid announcing a race stoppage until the\n// canonical suspension/restart and Live/Autosim behaviour are validated.\n// Keep safety-car, VSC and local-yellow decisions operational.\nexport const RED_FLAGS_ENABLED=false;\n\nconst clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const round=(v,digits=3)=>{
   const p=10**digits;
@@ -68,7 +68,7 @@ export function weatherRaceControlAssessment({rules={},row={},recentRows=[]}={})
   const score=weatherScore(loads,recentCritical);
 
   const redFlagCandidate=Boolean(
-    rules?.red_flag&&(
+    RED_FLAGS_ENABLED&&rules?.red_flag&&(
       (score>=0.70&&severeSignals.length>=2)||
       (score>=0.80&&severeSignals.length>=1)||
       (loads.hazard>=0.78&&severeSignals.length>=2)
@@ -150,7 +150,7 @@ export function incidentRaceControlAssessment({rules={},incident={},weatherRow={
 
   // Before the standard Safety Car era, severe situations can escalate directly
   // from local yellows to a stoppage. We do not invent a routine SC/VSC layer.
-  if(rules?.red_flag&&(
+  if(RED_FLAGS_ENABLED&&rules?.red_flag&&(
     severity==="critical"||
     (severity==="high"&&score>=0.78)
   )){
