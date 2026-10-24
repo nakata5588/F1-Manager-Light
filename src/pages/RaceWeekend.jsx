@@ -1480,8 +1480,8 @@ export default function RaceWeekend(){
                       <span>Fatigue +{Number(stint.outcome?.fatigue_cost||0).toFixed(1)}</span>
                       <span>Wear factor ×{Number(stint.outcome?.wear_factor||0).toFixed(2)} (session)</span>
                       <span>Mileage factor ×{Number(stint.outcome?.mileage_factor||0).toFixed(2)} (session)</span>
-                      <span>Qualifying focus +{Number(stint.outcome?.qualifying_bonus||0).toFixed(2)}</span>
-                      <span>Race focus +{Number(stint.outcome?.race_bonus||0).toFixed(2)}</span>
+                      <span>Qualifying focus +{Number(stint.outcome?.qualifying_bonus||0).toFixed(3)}</span>
+                      <span>Race focus +{Number(stint.outcome?.race_bonus||0).toFixed(3)}</span>
                       <span>Diagnostics ×{Number(stint.outcome?.reliability_diagnostic_bonus||0).toFixed(2)}</span>
                       <span>Weather: {stint.outcome?.weather_state||"Unknown"} · wetness {Number(stint.outcome?.track_wetness||0).toFixed(0)}%</span>
                     </div>
