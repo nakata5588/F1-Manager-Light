@@ -243,3 +243,55 @@ test("RW60 canonical overtake starts publish tyre wear and strategy factors for 
   assert.ok(p.opportunityContributions.strategy>0);
   assert.ok(p.opportunityContributions.tyreWear>0);
 });
+
+
+test("RW61 extends one physically closing near pass, then still requires actual road clearance",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:92,distanceAlongLapM:92,speedMs:46,speedKmh:165.6},
+  }));
+  const atExpiry={...s,cars:s.cars.map(car=>car.carId==="C2"
+    ?{...car,battle:{...car.battle,expiresAtMs:100}}:
+    {...car,battle:{...car.battle,expiresAtMs:100}})};
+  const proposed=patch(atExpiry,{
+    C2:{absoluteDistanceM:92.6,distanceAlongLapM:92.6},
+  }).cars;
+  const first=resolveSimpleRacePassing(atExpiry,proposed,{stepMs:100});
+  const extension=first.events.find(e=>e.type==="overtake_approach_extended");
+  assert.ok(extension,"physical closing within 10 metres merits one bounded extension");
+  assert.equal(extension.payload.extensionMs,4000);
+  assert.equal(first.events.filter(e=>e.type==="overtake_completed").length,0,
+    "extension alone must never create a position change");
+  assert.equal(get({cars:first.cars},"C2").battle.approachExtensions,1);
+  assert.equal(get({cars:first.cars},"C2").battle.expiresAtMs,4100);
+  assert.ok(first.bypassPairs.size===1);
+  const advancing={...atExpiry,cars:first.cars,simulationTimeMs:100};
+  const physicallyCrossing=patch(advancing,{
+    C2:{absoluteDistanceM:102,distanceAlongLapM:102},
+  }).cars;
+  const second=resolveSimpleRacePassing(advancing,physicallyCrossing,{stepMs:100});
+  assert.equal(second.events.filter(e=>e.type==="overtake_completed").length,1,
+    "only physical clearance, not extension, completes the pass");
+});
+
+test("RW61 cannot extend a stalled attempt or extend the same attempt twice",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:95,distanceAlongLapM:95,speedMs:40,speedKmh:144},
+  }));
+  const atExpiry=patch(s,{
+    C1:{battle:{...get(s,"C1").battle,expiresAtMs:100}},
+    C2:{battle:{...get(s,"C2").battle,expiresAtMs:100}},
+  });
+  const stalled=resolveSimpleRacePassing(atExpiry,atExpiry.cars,{stepMs:100});
+  assert.equal(stalled.events.some(e=>e.type==="overtake_approach_extended"),false);
+  assert.ok(stalled.events.some(e=>e.type==="overtake_failed"));
+  const extended=patch(atExpiry,{
+    C1:{battle:{...get(atExpiry,"C1").battle,approachExtensions:1}},
+    C2:{battle:{...get(atExpiry,"C2").battle,approachExtensions:1}},
+  });
+  const moving=patch(extended,{C2:{absoluteDistanceM:95.6,distanceAlongLapM:95.6}}).cars;
+  const second=resolveSimpleRacePassing(extended,moving,{stepMs:100});
+  assert.equal(second.events.some(e=>e.type==="overtake_approach_extended"),false);
+  assert.ok(second.events.some(e=>e.type==="overtake_failed"));
+});
