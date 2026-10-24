@@ -258,6 +258,29 @@ function processExisting(state,proposed,stepMs,sectors){
       cars=set(set(cars,a),b);continue;
     }
     const timedOut=next>=n(old.battle.expiresAtMs,next);
+    // RW61: the initial attempt duration is estimated from pre-launch free
+    // pace. In a real braking zone that estimate can expire even when the
+    // attacker is still *physically* closing on the defender. Allow one short
+    // extension only for a nearby pair with measured positive closing.
+    // Never grant speed/distance, and never extend a stalled or lost duel.
+    const alreadyExtended=n(old.battle.approachExtensions,0)>=1;
+    const stillClosing=delta>=0.45&&separation>=-10&&separation<RACE_OVERTAKE_DECISIVE_CLEARANCE_M;
+    if(timedOut&&!alreadyExtended&&stillClosing&&separation>-24){
+      const extendedDeadline=next+4000;
+      a=phase(a,b,"attacker",separation>=-7.5?"side_by_side":"approach",
+        oldSide,attempt,n(old.battle.startedAtMs),extendedDeadline);
+      b=phase(b,a,"defender",separation>=-7.5?"side_by_side":"approach",
+        -oldSide,attempt,n(old.battle.startedAtMs),extendedDeadline);
+      a={...a,battle:{...a.battle,approachExtensions:1}};
+      b={...b,battle:{...b.battle,approachExtensions:1}};
+      bypass.add(pair);
+      events.push(event("overtake_approach_extended",state,a,b,{
+        attemptId:attempt,physicalGapM:round(Math.max(0,-separation)),
+        actualClosingMs:round(delta),extensionMs:4000,
+        passKind:racePhysicalPassContext(state,a,b).kind,
+      }));
+      cars=set(set(cars,a),b);continue;
+    }
     if(separation<=-24||timedOut){
       const reason=separation<=-24?"defender_clear":
         old.battle.phase==="approach"?"approach_timeout":"timeout";
