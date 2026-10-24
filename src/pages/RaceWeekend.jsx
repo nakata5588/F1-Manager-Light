@@ -1463,17 +1463,31 @@ export default function RaceWeekend(){
               const damaged=Boolean(state.repairs?.[did]);
               const remaining=Number(state.duration_minutes||60)-Number(state.elapsed_minutes||0);
               const stints=(state.stints||[]).filter(stint=>stint.driver_id===did);
+              // The core stores minute-by-minute observations; the UI groups
+              // consecutive minutes with the same programme into a single run.
+              // A run is not a lap: no lap times are inferred from wall-clock.
+              const runs=stints.reduce((groups,record)=>{
+                const last=groups.at(-1);
+                if(last&&last.programme_id===record.programme_id&&last.end_minute===record.start_minute){
+                  last.end_minute=record.end_minute;
+                  last.outcome=record.outcome;
+                  last.minutes+=record.duration_minutes;
+                }else{
+                  groups.push({...record,minutes:record.duration_minutes});
+                }
+                return groups;
+              },[]);
               return <div key={did} className="rounded-lg border border-white/10 bg-[#171d27] p-3">
-                <div className="font-medium">{driverName(drivers,did)} · {stints.length} minute records</div>
+                <div className="font-medium">{driverName(drivers,did)} · {runs.length} runs</div>
                 <div className="mt-1 text-xs text-slate-400">{damaged?"Car requires inspection: "+state.repairs[did]:remaining<10?"Not enough session time for a 10-minute stint":"Ready for another stint"}</div>
                 <div className="mt-2 flex gap-2">
                   <button className="rounded bg-cyan-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||damaged||remaining<1} onClick={()=>setPracticeActiveDrivers(ids=>ids.includes(did)?ids.filter(id=>id!==did):[...ids,did])}>{practiceActiveDrivers.includes(did)?"Return to garage":"Send on track"}</button>
                   {damaged&&<button className="rounded bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||remaining<15} title={remaining<15?"Insufficient session time for repair":""} onClick={()=>perform(()=>repairManagedCar(did,15))}>Repair · 15 min</button>}
                 </div>
                 <div className="mt-3 space-y-2">
-                  {stints.length>1&&<button className="text-xs text-cyan-300 underline" onClick={()=>setPracticeHistoryExpanded(previous=>({...previous,[did]:!previous[did]}))}>{practiceHistoryExpanded[did]?"Show latest only":`View all ${stints.length} minute records`}</button>}
-                  {(practiceHistoryExpanded[did]?stints:stints.slice(-1)).map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
-                    <div className="font-semibold">Minute record {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id}</div>
+                  {runs.length>1&&<button className="text-xs text-cyan-300 underline" onClick={()=>setPracticeHistoryExpanded(previous=>({...previous,[did]:!previous[did]}))}>{practiceHistoryExpanded[did]?"Show latest only":`View all ${runs.length} runs`}</button>}
+                  {(practiceHistoryExpanded[did]?runs:runs.slice(-1)).map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
+                    <div className="font-semibold">Run {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id} · {stint.minutes} min</div>
                     <div>Setup {Number(stint.outcome?.setup_quality||0).toFixed(1)}/100 · Knowledge {Number(stint.outcome?.setup_knowledge||0).toFixed(1)}/100</div>
                     <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-400">
                       <span>Preparation +{Number(stint.outcome?.preparation_gain||0).toFixed(1)}</span>
