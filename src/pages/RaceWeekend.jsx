@@ -1415,7 +1415,7 @@ export default function RaceWeekend(){
           <div className="flex flex-wrap justify-between gap-2">
             <div>
               <div className="font-semibold text-cyan-200">Manage Practice — stint trial</div>
-              <div className="text-xs text-slate-400">Experimental stint outcomes (setup and incident diagnostics) from the Practice core. These do not yet accumulate into final performance, wear or fatigue. Finishing uses the existing full-session simulation.</div>
+              <div className="text-xs text-slate-400">Each stint applies its effects immediately: setup, preparation, fatigue and component wear carry into the next outing. The final report includes the managed stints.</div>
             </div>
             <span className="text-sm text-slate-300">{Number(weekend.managed_practice?.elapsed_minutes||0)} / {Number(weekend.managed_practice?.duration_minutes||60)} min</span>
           </div>
@@ -1436,8 +1436,18 @@ export default function RaceWeekend(){
                 <div className="mt-3 space-y-2">
                   {stints.map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
                     <div className="font-semibold">Stint {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id}</div>
-                    <div>Setup estimate {Number(stint.outcome?.setup_quality||0).toFixed(0)}/100 · Knowledge {Number(stint.outcome?.setup_knowledge||0).toFixed(0)}/100</div>
-                    <div>{stint.outcome?.feedback}</div>
+                    <div>Setup {Number(stint.outcome?.setup_quality||0).toFixed(1)}/100 · Knowledge {Number(stint.outcome?.setup_knowledge||0).toFixed(1)}/100</div>
+                    <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                      <span>Preparation +{Number(stint.outcome?.preparation_gain||0).toFixed(1)}</span>
+                      <span>Fatigue +{Number(stint.outcome?.fatigue_cost||0).toFixed(1)}</span>
+                      <span>Wear factor ×{Number(stint.outcome?.wear_factor||0).toFixed(2)} (session)</span>
+                      <span>Mileage factor ×{Number(stint.outcome?.mileage_factor||0).toFixed(2)} (session)</span>
+                      <span>Qualifying focus +{Number(stint.outcome?.qualifying_bonus||0).toFixed(2)}</span>
+                      <span>Race focus +{Number(stint.outcome?.race_bonus||0).toFixed(2)}</span>
+                      <span>Diagnostics ×{Number(stint.outcome?.reliability_diagnostic_bonus||0).toFixed(2)}</span>
+                      <span>Weather: {stint.outcome?.weather_state||"Unknown"} · wetness {Number(stint.outcome?.track_wetness||0).toFixed(0)}%</span>
+                    </div>
+                    <div className="mt-1 text-cyan-200">{stint.outcome?.feedback}</div>
                     {stint.outcome?.issue_note&&<div className="text-amber-300">{stint.outcome.issue_note}</div>}
                   </div>)}
                 </div>
