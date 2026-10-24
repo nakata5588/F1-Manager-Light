@@ -21,9 +21,17 @@ export function appendPracticeStint(state,{driverId,programmeId,minutes,outcome}
 export function repairPracticeCar(state,{driverId,minutes}){
   const required=clamp(minutes,1,state.duration_minutes);
   if(!state.repairs?.[driverId]||state.finished)return state;
-  const elapsed=Math.min(state.duration_minutes,state.elapsed_minutes+required);
+  if(state.elapsed_minutes+required>state.duration_minutes)return state;
+  const elapsed=state.elapsed_minutes+required;
   return {...state,elapsed_minutes:elapsed,repairs:{...state.repairs,[driverId]:null}};
 }
 export function markPracticeDamage(state,driverId,reason){
   return {...state,repairs:{...state.repairs,[driverId]:String(reason||"Inspection required")}};
+}
+
+export function managedPracticeSummary(state,driverId){
+  const stints=(state?.stints||[]).filter(row=>String(row.driver_id)===String(driverId));
+  return {stints:stints.length,minutes:stints.reduce((sum,row)=>sum+Number(row.duration_minutes||0),0),
+    issues:stints.filter(row=>row.outcome?.issue_type).length,
+    lastOutcome:stints.at(-1)?.outcome||null};
 }
