@@ -67,8 +67,16 @@ function weatherTyreCategory(state){
     ??state?.trackState?.wetness,
     null
   );
-  if(["heavy_rain","storm"].includes(weather)||(wetness!=null&&wetness>=0.68))return "wet";
-  if(["light_rain","wetting","drying","drizzle_drying"].includes(weather)||(wetness!=null&&wetness>=0.22))return "intermediate";
+  // Weather describes rainfall, not the amount of water already on the road.
+  // Use measured surface wetness when available; weather names are a fallback
+  // for old saves without a surface model.
+  if(wetness!=null){
+    if(wetness>=0.72)return "wet";
+    if(wetness>=0.22)return "intermediate";
+    return "dry";
+  }
+  if(["heavy_rain","storm"].includes(weather))return "wet";
+  if(["light_rain","wetting","drying","drizzle_drying"].includes(weather))return "intermediate";
   return "dry";
 }
 
@@ -148,7 +156,31 @@ function pitWindowFor(state,car){
   const currentCategory=text(car?.tyre?.category||"dry");
   const targetCategory=weatherTyreCategory(state);
   const weatherMismatch=currentCategory!==targetCategory&&Boolean(bestAvailableTyre(car,targetCategory));
-  if(weatherMismatch){
+  // A tyre mismatch alone is not a pit-stop justification. A storm can begin
+  // while the racing line is still dry. Account for pit loss and the number of
+  // laps the replacement tyre is likely to be useful, rather than sending
+  // the entire field into the pits at the first weather-state transition.
+  const wetness=finite(state?.weatherState?.track_wetness??state?.trackState?.wetness,null);
+  const rain=clamp(finite(state?.weatherState?.rain_intensity??state?.trackState?.rainIntensity,0),0,1);
+  const delta=finite(state?.weatherState?.wetness_delta??state?.trackState?.wetnessDelta,0);
+  const currentPenalty=(w)=>tyreWeatherPenaltyForWetness(currentCategory,w);
+  const targetPenalty=(w)=>tyreWeatherPenaltyForWetness(targetCategory,w);
+  const horizon=Math.min(12,remaining);
+  let projectedGain=0;
+  if(wetness!=null){
+    for(let ahead=0;ahead<horizon;ahead++){
+      const projected=clamp(wetness+delta*ahead+rain*0.008*ahead,0,1);
+      projectedGain+=currentPenalty(projected)-targetPenalty(projected);
+    }
+  }
+  const severeMismatch=wetness!=null&&(
+    (currentCategory==="dry"&&wetness>=0.55)||
+    (currentCategory==="intermediate"&&wetness>=0.88)||
+    (currentCategory==="wet"&&wetness<=0.06)
+  );
+  const worthStopping=wetness==null||severeMismatch||
+    projectedGain>expectedPitLossSeconds(state,car)+3;
+  if(weatherMismatch&&worthStopping){
     return {
       from_lap:reachable,
       to_lap:Math.min(limit,reachable+1),
