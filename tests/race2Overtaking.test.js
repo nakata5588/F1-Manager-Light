@@ -185,3 +185,61 @@ test("Live and Fast use exactly the same new passing core",()=>{
   let fast=s;for(let i=0;i<25;i++)fast=runFastRace(fast,{steps:1});
   assert.deepEqual(runner.getState(),fast);
 });
+
+test("RW60 same-stint rematch requires a real lap travelled by both cars",()=>{
+  const s=manual(patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:43,speedKmh:154.8},
+    C2:{absoluteDistanceM:108,distanceAlongLapM:108,speedMs:45,speedKmh:162},
+  }));
+  const first=resolveSimpleRacePassing(s,s.cars,{stepMs:100});
+  assert.equal(first.events.filter(e=>e.type==="overtake_completed").length,1);
+  const baseline={...s,simulationTimeMs:30000,cars:first.cars};
+  const position=(one,two)=>patch(baseline,{
+    C1:{absoluteDistanceM:one,distanceAlongLapM:one%1000,speedMs:47,
+      speedKmh:169.2,freeTargetSpeedKmh:195},
+    C2:{absoluteDistanceM:two,distanceAlongLapM:two%1000,speedMs:43,
+      speedKmh:154.8,freeTargetSpeedKmh:165},
+  });
+  assert.equal(diagnoseSimplePassGate(position(100,108),get(position(100,108),"C1")).reason,
+    "recent_pair_cooldown","an instant counterattack is still blocked");
+  const onlyOneLap=position(1100,1107);
+  assert.equal(diagnoseSimplePassGate(onlyOneLap,get(onlyOneLap,"C1")).reason,
+    "recent_pair_cooldown","the other car must also travel a physical lap");
+  const nearComplete=position(1099,1107);
+  assert.equal(diagnoseSimplePassGate(nearComplete,get(nearComplete,"C1")).reason,
+    "recent_pair_cooldown","a new attempt is not released by elapsed clock alone");
+  const rematch=position(1100,1108);
+  assert.notEqual(diagnoseSimplePassGate(rematch,get(rematch,"C1")).reason,
+    "recent_pair_cooldown","a genuine later advantage may be evaluated again");
+});
+
+test("RW60 canonical overtake starts publish tyre wear and strategy factors for audit",()=>{
+  const s=patch(state(),{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,sector:1,
+      speedMs:44,speedKmh:158.4,freeTargetSpeedKmh:165,
+      resources:{paceMode:"conserve"},
+      tyre:{condition:55,grip_index:72,grip_multiplier:0.85},
+      damage:{pace_loss_s_per_lap:2}},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,sector:1,
+      speedMs:47,speedKmh:169.2,freeTargetSpeedKmh:198,
+      resources:{paceMode:"attack"},
+      tyre:{condition:95,grip_index:85,grip_multiplier:1},
+      damage:{pace_loss_s_per_lap:0}},
+  });
+  let started=null;
+  for(let second=0;second<80&&!started;second++){
+    const at={...s,tick:second*10,simulationTimeMs:second*1000};
+    started=resolveSimpleRacePassing(at,at.cars,{stepMs:100}).events
+      .find(e=>e.type==="overtake_started")??null;
+  }
+  assert.ok(started,"real speed and performance advantage should generate an attempt");
+  const p=started.payload;
+  assert.equal(p.attackerPaceMode,"attack");
+  assert.equal(p.defenderPaceMode,"conserve");
+  assert.ok(p.tyreGripEdge>0);
+  assert.ok(p.tyreConditionEdge>0);
+  assert.ok(p.damageEdge>0);
+  assert.ok(p.opportunityContributions.compound>0);
+  assert.ok(p.opportunityContributions.strategy>0);
+  assert.ok(p.opportunityContributions.tyreWear>0);
+});
