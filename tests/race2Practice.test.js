@@ -142,3 +142,15 @@ test("managed canonical stints carry setup forward and scale fatigue to elapsed 
   }
   assert.ok(second.fatigue_before>=firstRow.fatigue_after);
 });
+
+test("managed stint programme focus earns proportional rather than full-session rewards",()=>{
+  const state=input();
+  state.entrants=[{...state.entrants[0],stintMinutes:10,requestedProgrammeId:"qualifying"}];
+  const q=simulateCanonicalPractice(state).results[0];
+  state.entrants[0].requestedProgrammeId="race";
+  const r=simulateCanonicalPractice(state).results[0];
+  assert.ok(q.qualifying_bonus>r.qualifying_bonus);
+  assert.ok(r.race_bonus>q.race_bonus);
+  assert.ok(q.qualifying_bonus<0.3);
+  assert.ok(r.race_bonus<0.3);
+});
