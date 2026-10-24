@@ -27,7 +27,7 @@ export function historicalGrandPrixLaps(gp, year) {
   if (Number(year) !== 1980 || !gp) return null;
   // Only apply to canonical F1 event entities, not generic test tracks.
   const trackId = String(gp.track_id ?? gp.circuit_id ?? "");
-  if (!/^tr_\\d+$/.test(trackId)) return null;
+  if (!/^tr_\d+$/.test(trackId)) return null;
   const date = String(gp.race_date ?? gp.dateISO ?? gp.date ?? "").slice(0, 10);
   return F1_1980_OFFICIAL_RACE_LAPS[date] ?? null;
 }
