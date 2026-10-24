@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {managedPracticeState,appendPracticeStint,markPracticeDamage,repairPracticeCar,canRunPracticeStint,managedPracticeSummary} from "../src/engine/ManagedPracticeSession.js";
+import {managedPracticeState,appendPracticeStint,markPracticeDamage,repairPracticeCar,canRunPracticeStint,managedPracticeSummary,advancePracticeClock} from "../src/engine/ManagedPracticeSession.js";
 
 test("managed Practice stints consume shared session clock and retain outcomes",()=>{
   const initial=managedPracticeState({});
@@ -42,4 +42,16 @@ test("managed Practice state survives JSON save/load without losing stint outcom
   const restored=managedPracticeState({managed_practice:JSON.parse(JSON.stringify(original))});
   assert.deepEqual(restored,original);
   assert.equal(managedPracticeSummary(restored,"D1").lastOutcome.setup.gearing,63);
+});
+
+test("shared clock advances while cars are idle and survives save/load",()=>{
+  const initial=managedPracticeState({});
+  const idle=advancePracticeClock(initial,5);
+  assert.equal(idle.elapsed_minutes,5);
+  assert.equal(idle.stints.length,0);
+  const saved=JSON.parse(JSON.stringify(idle));
+  assert.deepEqual(advancePracticeClock(saved,55).elapsed_minutes,60);
+  assert.equal(advancePracticeClock(saved,100).elapsed_minutes,60);
+  assert.equal(canRunPracticeStint(advancePracticeClock(saved,55),"D1",1),false);
+  assert.equal(advancePracticeClock(saved,-4),saved);
 });
