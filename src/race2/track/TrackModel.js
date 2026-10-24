@@ -4,6 +4,7 @@
 // from physical distance to an on-screen pose.
 
 import { historicalTrackLapLengthKm, resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
+import { historicalGrandPrixLaps } from "../../data/historicalGrandPrixLaps.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 import { simplifyClosedPolyline } from "../../domain/trackSceneGeometry.js";
 import { provisionalAlbertParkSpeedProfile } from "../../data/tracks/tr_0019_1996_2020.speedProfile.js";
@@ -391,9 +392,12 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     ?"track_data"
     :"era_default_estimate";
 
+  // An already-started race keeps its saved lap limit; otherwise the
+  // individual GP distance wins over a circuit-level default.
   const laps=positive(
-    metadata?.laps,
-    positive(trackSnapshot?.laps,positive(gp?.laps,null))
+    trackSnapshot?.laps,
+    positive(gp?.laps??gp?.race_laps,
+      positive(historicalGrandPrixLaps(gp,y),positive(metadata?.laps,null)))
   );
 
   return {
