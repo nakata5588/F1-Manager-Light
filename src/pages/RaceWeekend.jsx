@@ -665,6 +665,11 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   </div>;
 }
 
+function formatPracticeClock(seconds){
+  const remaining=Math.max(0,Math.floor(Number(seconds)||0));
+  return `${String(Math.floor(remaining/60)).padStart(2,"0")}:${String(remaining%60).padStart(2,"0")}`;
+}
+
 export default function RaceWeekend(){
   const navigate=useNavigate();
   const gs=useGame((s)=>s.gameState);
@@ -1444,7 +1449,7 @@ export default function RaceWeekend(){
             <span className="text-sm text-slate-300">{Number(weekend.managed_practice?.elapsed_minutes||0)} / {Number(weekend.managed_practice?.duration_minutes||60)} min completed</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded bg-slate-900 px-3 py-2 font-mono text-base text-white">Remaining {Math.max(0,Math.floor((Number(weekend.managed_practice?.duration_minutes||60)-Number(weekend.managed_practice?.elapsed_minutes||0))*60-practiceClockOffsetSec)/60)).toString().padStart(2,"0")}:{Math.max(0,Math.floor((Number(weekend.managed_practice?.duration_minutes||60)-Number(weekend.managed_practice?.elapsed_minutes||0))*60-practiceClockOffsetSec)%60).toString().padStart(2,"0")}</span>
+            <span className="rounded bg-slate-900 px-3 py-2 font-mono text-base text-white">Remaining {formatPracticeClock((Number(weekend.managed_practice?.duration_minutes||60)-Number(weekend.managed_practice?.elapsed_minutes||0))*60-practiceClockOffsetSec)}</span>
             <button className="rounded bg-cyan-700 px-3 py-2 text-white disabled:opacity-40" disabled={busy||Number(weekend.managed_practice?.elapsed_minutes||0)>=Number(weekend.managed_practice?.duration_minutes||60)} onClick={()=>setPracticeClockRunning(v=>!v)}>{practiceClockRunning?"Pause":"Play"}</button>
             {[1,4,8,16].map(speed=><button key={speed} className={"rounded px-2 py-2 "+(practiceClockSpeed===speed?"bg-cyan-700 text-white":"bg-slate-800 text-slate-300")} onClick={()=>setPracticeClockSpeed(speed)}>x{speed}</button>)}
             <button className="rounded bg-slate-800 px-3 py-2 text-slate-300" onClick={()=>setPracticeActiveDriver("")}>Keep cars in garage</button>
