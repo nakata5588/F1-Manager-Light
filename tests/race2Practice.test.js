@@ -133,5 +133,12 @@ test("managed canonical stints carry setup forward and scale fatigue to elapsed 
   const second=simulateCanonicalPractice(secondInput).results[0];
   assert.deepEqual(second.initial_setup,firstRow.setup);
   assert.ok(second.setup_knowledge>firstRow.setup_knowledge);
+  assert.ok(second.setup_quality>=firstRow.setup_quality,
+    "continued setup work must not randomly undo the previous stint");
+  for(const key of Object.keys(second.target_setup)){
+    const before=Math.abs(firstRow.setup[key]-second.target_setup[key]);
+    const after=Math.abs(second.setup[key]-second.target_setup[key]);
+    assert.ok(after<=before+0.11,`setup ${key} must converge from the previous actual value`);
+  }
   assert.ok(second.fatigue_before>=firstRow.fatigue_after);
 });
