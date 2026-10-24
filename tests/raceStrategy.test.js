@@ -859,6 +859,22 @@ test("Long Beach race Strategy consumes same historic F1 distance facts",()=>{
   // Not part of per-lap geometry or implemented in Race Core.
 });
 
+test("Zolder historical lap lengths used by Strategy, 1980 official 72 × 4.262 km",()=>{
+  const core={track_id:"tr_0026",lap_length_km:4.262};
+  for(const [year,km,laps] of [
+    [1973,4.220,70],[1975,4.262,70],[1979,4.262,70],
+    [1980,4.262,72],[1981,4.262,70],[1982,4.262,70],
+    [1984,4.262,70]
+  ]){
+    const p=raceTrackProfile({activeYear:year,coreTracks:[core]},
+      {year,track_id:"tr_0026",laps});
+    assert.equal(p.track_id,"tr_0026",String(year));
+    assert.equal(p.lap_length_km,km,String(year));
+    assert.equal(p.race_distance_km,Number((km*laps).toFixed(1)),String(year));
+  }
+  // Historical 1980 official length: 306.864 km.
+  // Explicit GP laps (72) must override generic core_tracks.laps_default (70).
+});
 
 test("1980 race strategy uses sourced Argentina 53 laps, not generic 305 km",()=>{
   const gs={activeYear:1980,trackLayoutByYear:[{
@@ -881,3 +897,4 @@ test("1980 race strategy uses sourced Argentina 53 laps, not generic 305 km",()=
     track_id:"monaco",race_date:"1980-05-18",year:1980,
   }).laps,30,"generic tracks must not inherit real-GP distances");
 });
+

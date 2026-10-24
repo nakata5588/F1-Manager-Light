@@ -80,7 +80,7 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0028",["exact",1980,"derived_provisional"]],
     ["tr_0067",["exact",1980,"derived_provisional"]],
     ["tr_0088",["exact",1980,"derived_provisional"]],
-    ["tr_0026",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0026",["exact",1980,"derived_provisional"]],
     ["tr_0056",["generic_fallback",null,"derived_provisional"]],
     ["tr_0035",["generic_fallback",null,"derived_provisional"]],
     ["tr_0081",["generic_fallback",null,"derived_provisional"]],
@@ -902,6 +902,70 @@ test("Long Beach three illustrative F1 centerlines avoid crossings, near-uniform
       const [a,b,c,d]=[p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]];
       assert.equal(orient(a,b,c)*orient(a,b,d)<-1e-8&&
         orient(c,d,a)*orient(c,d,b)<-1e-8,false,"crossing "+year+" "+i+"/"+j);
+    }
+  }
+});
+
+test("Zolder 1973 and 1975–85 use one tr_0026, never the modern variant in 1980",()=>{
+  const layouts=TRACK_LAYOUT_ASSETS.filter(row=>row.track_id==="tr_0026");
+  assert.deepEqual(layouts.filter(row=>row.track_package)
+    .map(row=>[row.layout_id,row.year_from,row.year_to]),[
+      ["tr_0026_1972_1974",1972,1974],
+      ["tr_0026_1975_1985",1975,1985]
+    ]);
+  for(const [year,id,km] of [
+    [1972,"tr_0026_1972_1974",4.220],
+    [1973,"tr_0026_1972_1974",4.220],
+    [1974,"tr_0026_1972_1974",4.220],
+    [1975,"tr_0026_1975_1985",4.262],
+    [1979,"tr_0026_1975_1985",4.262],
+    [1980,"tr_0026_1975_1985",4.262],
+    [1981,"tr_0026_1975_1985",4.262],
+    [1982,"tr_0026_1975_1985",4.262],
+    [1983,"tr_0026_1975_1985",4.262],
+    [1984,"tr_0026_1975_1985",4.262],
+    [1985,"tr_0026_1975_1985",4.262]
+  ]){
+    const resolved=resolveTrackLayout({trackId:"tr_0026",year});
+    const runtime=trackRuntimeGeometry(resolved);
+    assert.equal(resolved.resolution,"exact",String(year));
+    assert.equal(resolved.layout.layout_id,id,String(year));
+    assert.equal(resolved.layout.track_id,"tr_0026");
+    assert.equal(resolved.layout.race_direction,"clockwise");
+    assert.equal(historicalTrackLapLengthKm("tr_0026",year),km);
+    assert.equal(runtime.source,"f1track_functional");
+    assert.equal(runtime.geometry.quality,"derived_provisional");
+    assert.equal(runtime.geometry.points.length,240);
+    assert.deepEqual(resolved.geometry.points,runtime.geometry.points);
+    assert.equal(trackPresentationSplineEligible(resolved,runtime),false);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_entry_progress,null);
+    assert.equal(trackIntelligenceProfile(resolved.layout).pit_exit_progress,null);
+  }
+  assert.notDeepEqual(
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0026",year:1973})).geometry.points,
+    trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0026",year:1980})).geometry.points,
+    "1975 chicane really changed driving geometry");
+  for(const year of [1950,1963,1971,1986,1994,2000,2026]){
+    const res=resolveTrackLayout({trackId:"tr_0026",year});
+    assert.equal(trackRuntimeGeometry(res).geometry,null,"no unverified layout "+year);
+    assert.equal(historicalTrackLapLengthKm("tr_0026",year),null,"no invented lap length "+year);
+  }
+});
+
+test("Zolder two historical SVG centrelines have clockwise winding, regular sampling and no crossings",()=>{
+  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  for(const year of [1973,1980]){
+    const p=trackRuntimeGeometry(resolveTrackLayout({trackId:"tr_0026",year})).geometry.points;
+    const area=p.reduce((sum,a,i)=>{const b=p[(i+1)%p.length];return sum+a[0]*b[1]-b[0]*a[1]},0)/2;
+    assert.ok(area>0,"clockwise winding "+year);
+    const gaps=p.map((a,i)=>Math.hypot(a[0]-p[(i+1)%p.length][0],a[1]-p[(i+1)%p.length][1]));
+    assert.ok(Math.max(...gaps)<Math.min(...gaps)*1.06,"arc-length samples "+year);
+    for(let i=0;i<p.length;i++)for(let j=i+2;j<p.length;j++){
+      if(i===0&&j===p.length-1)continue;
+      const [a,b,c,d]=[p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]];
+      assert.equal(
+        orient(a,b,c)*orient(a,b,d)<-1e-8&&orient(c,d,a)*orient(c,d,b)<-1e-8,
+        false,"self crossing "+year+" "+i+"/"+j);
     }
   }
 });
