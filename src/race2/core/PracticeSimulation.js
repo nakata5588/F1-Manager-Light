@@ -275,8 +275,10 @@ export function simulateCanonicalPractice(input={}){
       setup:final,
       target_setup:target,
       feedback:feedbackFor(final,target),
-      qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*num(input?.qualifyingRelevance,0.75))),
-      race_bonus:round1(programme.raceBonus*(0.62+0.38*num(input?.raceRelevance,0.75))),
+      // Managed stints earn only their proportional programme benefit;
+      // repeated short runs cannot each grant a full-session bonus.
+      qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*num(input?.qualifyingRelevance,0.75))*stintFraction),
+      race_bonus:round1(programme.raceBonus*(0.62+0.38*num(input?.raceRelevance,0.75))*stintFraction),
       reliability_bonus:0,
       reliability_diagnostic_bonus:programme.reliabilityBonus,
       mileage_factor:round1(programme.mileageFactor*stintFraction),
