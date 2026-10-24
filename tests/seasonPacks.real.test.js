@@ -132,9 +132,12 @@ for(const year of targetYears){
       assert.equal(Number(state.qualifyingRules.session_count),2,"1980 must seed two Qualifying sessions");
       assert.equal(state.qualifyingRules.strategy,"best_time_across_sessions");
       assert.equal(Number(state.qualifyingRules.max_starters),24,"1980 normal grid limit must be 24");
-      const monaco=(state.qualifyingRules.event_overrides||[]).find((row)=>String(row.gp_id)==="gp_006");
-      assert.ok(monaco,"1980 Monaco Qualifying override must be present");
+      const monaco=(state.qualifyingRules.event_overrides||[]).find((row)=>String(row.track_id)==="tr_0056");
+      assert.ok(monaco,"1980 Monaco Qualifying override must use the canonical track identity");
       assert.equal(Number(monaco.max_starters),20,"1980 Monaco starting-grid limit must be 20");
+      const argentina=(state.qualifyingRules.event_overrides||[]).find((row)=>String(row.track_id)==="tr_0018");
+      assert.ok(argentina,"1980 Argentina entry override must use the canonical track identity");
+      assert.equal(Number(argentina.max_entries),28,"1980 Argentina must retain its 28-entry historical limit");
     }
     if(year===1987){
       const priorIds=new Set(state.driverHistory.filter((r)=>Number(r.year)<1987).map((r)=>String(r.driver_id)));
