@@ -119,7 +119,7 @@ export function weatherRaceControlAssessment({rules={},row={},recentRows=[]}={})
     mechanism_available:{
       safety_car:Boolean(rules?.safety_car),
       virtual_safety_car:Boolean(rules?.virtual_safety_car),
-      red_flag:Boolean(rules?.red_flag),
+      red_flag:Boolean(RED_FLAGS_ENABLED&&rules?.red_flag),
     },
   };
 }
