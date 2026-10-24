@@ -154,3 +154,12 @@ test("managed stint programme focus earns proportional rather than full-session 
   assert.ok(q.qualifying_bonus<0.3);
   assert.ok(r.race_bonus<0.3);
 });
+
+test("one-minute focus and wear retain fractional precision instead of becoming zero",()=>{
+  const state=input();
+  state.entrants=[{...state.entrants[0],stintMinutes:1,requestedProgrammeId:"qualifying"}];
+  const result=simulateCanonicalPractice(state).results[0];
+  assert.ok(result.qualifying_bonus>0);
+  assert.ok(result.mileage_factor>0);
+  assert.ok(result.wear_factor>0);
+});
