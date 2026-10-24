@@ -35,3 +35,13 @@ export function managedPracticeSummary(state,driverId){
     issues:stints.filter(row=>row.outcome?.issue_type).length,
     lastOutcome:stints.at(-1)?.outcome||null};
 }
+
+/** One authoritative minute of shared session time. Idling burns time but
+ * creates no false driver outcome. This remains deterministic after restore. */
+export function advancePracticeClock(state,minutes=1){
+  const delta=Number(minutes);
+  if(!Number.isFinite(delta)||delta<=0||state.finished)return state;
+  const elapsed=Math.min(Number(state.duration_minutes),Number(state.elapsed_minutes)+delta);
+  if(elapsed===state.elapsed_minutes)return state;
+  return {...state,elapsed_minutes:elapsed};
+}
