@@ -434,6 +434,9 @@ function planningWeatherFromForecast(forecast,track,fallbackWeather){
     source:"team_forecast",
     state:segments[0]?.state||predicted,
     predicted_state:predicted,
+    // The shared starting-surface snapshot is already displayed during
+    // strategy planning; do not infer initial water solely from STORM.
+    starting_track_wetness:num(forecast?.starting_track_wetness,fallbackWeather?.starting_track_wetness??NaN),
     avg_temp_c:num(forecast?.air_temp_c,fallbackWeather?.avg_temp_c??22),
     rain_chance_pct:num(forecast?.rain_chance_pct,0),
     confidence_pct:num(forecast?.confidence_pct,0),
@@ -476,7 +479,14 @@ function defaultStrategy(gs,entry,weather,track,rules){
   const did=String(entry?.driver_id??"");
   const tid=String(entry?.team_id??"");
   const options=tyresForTeam(gs,tid,{year:gs?.activeYear,trackId:track?.track_id});
-  const category=weatherCategory(stateAtLap(weather,1));
+  // Starting compound follows the surface expected at lights out, not just
+  // the label of a rain event that may take several laps to wet the road.
+  // The forecast can differ by team; its opening surface estimate is shared
+  // only with that team's strategy, not used to reveal future actual weather.
+  const openingWetness=num(weather?.starting_track_wetness,NaN);
+  const category=Number.isFinite(openingWetness)
+    ?openingWetness>=0.72?"wet":openingWetness>=0.22?"intermediate":"dry"
+    :weatherCategory(stateAtLap(weather,1));
   const rating=(gs?.driverRatings||[]).find((r)=>String(r?.driver_id??"")===did)||{};
   const tyreMgmt=num(rating?.tire_management,60);
   const intelligence=num(rating?.race_intelligence,60);
