@@ -434,9 +434,9 @@ function planningWeatherFromForecast(forecast,track,fallbackWeather){
     source:"team_forecast",
     state:segments[0]?.state||predicted,
     predicted_state:predicted,
-    // The shared starting-surface snapshot is already displayed during
-    // strategy planning; do not infer initial water solely from STORM.
-    starting_track_wetness:num(forecast?.starting_track_wetness,fallbackWeather?.starting_track_wetness??NaN),
+    // Only use a surface estimate explicitly supplied to this team forecast.
+    // The actual race surface is hidden and must never leak through fallbackWeather.
+    starting_track_wetness:num(forecast?.starting_track_wetness,NaN),
     avg_temp_c:num(forecast?.air_temp_c,fallbackWeather?.avg_temp_c??22),
     rain_chance_pct:num(forecast?.rain_chance_pct,0),
     confidence_pct:num(forecast?.confidence_pct,0),
