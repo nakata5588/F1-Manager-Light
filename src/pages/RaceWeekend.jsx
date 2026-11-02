@@ -665,10 +665,18 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   </div>;
 }
 
+function formatPracticeClock(seconds){
+  const remaining=Math.max(0,Math.floor(Number(seconds)||0));
+  return `${String(Math.floor(remaining/60)).padStart(2,"0")}:${String(remaining%60).padStart(2,"0")}`;
+}
+
 export default function RaceWeekend(){
   const navigate=useNavigate();
   const gs=useGame((s)=>s.gameState);
   const runPractice=useGame((s)=>s.completeRaceWeekendPractice);
+  const runManagedStint=useGame((s)=>s.runManagedPracticeStint);
+  const advanceManagedMinute=useGame((s)=>s.advanceManagedPracticeMinute);
+  const repairManagedCar=useGame((s)=>s.repairManagedPracticeCar);
   const setPracticeProgramme=useGame((s)=>s.setRaceWeekendPracticeProgramme);
   const setRaceStrategy=useGame((s)=>s.setRaceWeekendStrategy);
   const runQualifying=useGame((s)=>s.completeRaceWeekendQualifying);
@@ -691,6 +699,12 @@ export default function RaceWeekend(){
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const pushToast=useGame((s)=>s.pushToast);
   const [busy,setBusy]=useState(false);
+  const [practiceClockRunning,setPracticeClockRunning]=useState(false);
+  const [practiceClockSpeed,setPracticeClockSpeed]=useState(1);
+  const [practiceActiveDrivers,setPracticeActiveDrivers]=useState([]);
+  const [practiceHistoryExpanded,setPracticeHistoryExpanded]=useState({});
+  const [practiceClockOffsetSec,setPracticeClockOffsetSec]=useState(0);
+  const practiceClockAccumulatedRef=useRef(0);
   const [activeWindow,setActiveWindow]=useState("overview");
   const [liveTimingMode,setLiveTimingMode]=useState("overall");
   const [selectedLiveDriverId,setSelectedLiveDriverId]=useState("");
@@ -707,6 +721,24 @@ export default function RaceWeekend(){
   if(!canonicalRaceFrameClockRef.current)canonicalRaceFrameClockRef.current=createCanonicalRaceViewFrameClock();
 
   const weekend=gs?.raceWeekendState;
+  useEffect(()=>{
+    if(!practiceClockRunning||weekend?.phase!=="practice")return undefined;
+    let advancing=false;
+    const timer=window.setInterval(async()=>{
+      if(advancing)return;
+      practiceClockAccumulatedRef.current+=practiceClockSpeed;
+      setPracticeClockOffsetSec(practiceClockAccumulatedRef.current);
+      if(practiceClockAccumulatedRef.current<60)return;
+      advancing=true;
+      practiceClockAccumulatedRef.current-=60;
+      try{
+        const state=await advanceManagedMinute(practiceActiveDrivers);
+        if(!state||state.elapsed_minutes>=state.duration_minutes)setPracticeClockRunning(false);
+      }catch(error){console.error("[Practice] clock advancement failed",error);setPracticeClockRunning(false);}
+      finally{advancing=false;}
+    },1000);
+    return ()=>window.clearInterval(timer);
+  },[practiceClockRunning,practiceClockSpeed,practiceActiveDrivers,weekend?.phase,advanceManagedMinute]);
   const usesCanonicalRaceRuntime=raceWeekendUsesCanonicalRuntime(gs);
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
@@ -1405,8 +1437,75 @@ export default function RaceWeekend(){
             <p className="text-sm text-slate-400 mt-1">Choose what each car should learn from Practice. The programme changes mileage, fatigue, wear and the type of preparation gained.</p>
           </div>
           <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runPractice)}>
-            {busy?"Running…":"Run Practice"}
+            {busy?"Running…":"Quick Simulate & Finish Practice"}
           </button>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3">
+          <div className="flex flex-wrap justify-between gap-2">
+            <div>
+              <div className="font-semibold text-cyan-200">Manage Practice — running session trial</div>
+              <div className="text-xs text-slate-400">Practice runs on a shared clock. Select the active driver, then Play. One-minute canonical slices accumulate setup, fatigue, preparation and wear. Both team cars can run simultaneously on the same shared clock. One-minute records are not completed laps.</div>
+            </div>
+            <span className="text-sm text-slate-300">{Number(weekend.managed_practice?.elapsed_minutes||0)} / {Number(weekend.managed_practice?.duration_minutes||60)} min completed</span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded bg-slate-900 px-3 py-2 font-mono text-base text-white">Remaining {formatPracticeClock((Number(weekend.managed_practice?.duration_minutes||60)-Number(weekend.managed_practice?.elapsed_minutes||0))*60-practiceClockOffsetSec)}</span>
+            <button className="rounded bg-cyan-700 px-3 py-2 text-white disabled:opacity-40" disabled={busy||Number(weekend.managed_practice?.elapsed_minutes||0)>=Number(weekend.managed_practice?.duration_minutes||60)} onClick={()=>setPracticeClockRunning(v=>!v)}>{practiceClockRunning?"Pause":"Play"}</button>
+            {[1,4,8,16].map(speed=><button key={speed} className={"rounded px-2 py-2 "+(practiceClockSpeed===speed?"bg-cyan-700 text-white":"bg-slate-800 text-slate-300")} onClick={()=>setPracticeClockSpeed(speed)}>x{speed}</button>)}
+            <button className="rounded bg-slate-800 px-3 py-2 text-slate-300" onClick={()=>setPracticeActiveDrivers([])}>Keep cars in garage</button>
+            <span className="text-slate-400">{practiceActiveDrivers.length?"On track: "+practiceActiveDrivers.map(id=>driverName(drivers,id)).join(" + "):"No player car on track"}</span>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {playerEntrants.map(entry=>{
+              const did=String(entry.driver_id);
+              const state=weekend.managed_practice||{};
+              const damaged=Boolean(state.repairs?.[did]);
+              const remaining=Number(state.duration_minutes||60)-Number(state.elapsed_minutes||0);
+              const stints=(state.stints||[]).filter(stint=>stint.driver_id===did);
+              // The core stores minute-by-minute observations; the UI groups
+              // consecutive minutes with the same programme into a single run.
+              // A run is not a lap: no lap times are inferred from wall-clock.
+              const runs=stints.reduce((groups,record)=>{
+                const last=groups.at(-1);
+                if(last&&last.programme_id===record.programme_id&&last.end_minute===record.start_minute){
+                  last.end_minute=record.end_minute;
+                  last.outcome=record.outcome;
+                  last.minutes+=record.duration_minutes;
+                }else{
+                  groups.push({...record,minutes:record.duration_minutes});
+                }
+                return groups;
+              },[]);
+              return <div key={did} className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+                <div className="font-medium">{driverName(drivers,did)} · {runs.length} runs</div>
+                <div className="mt-1 text-xs text-slate-400">{damaged?"Car requires inspection: "+state.repairs[did]:remaining<10?"Not enough session time for a 10-minute stint":"Ready for another stint"}</div>
+                <div className="mt-2 flex gap-2">
+                  <button className="rounded bg-cyan-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||damaged||remaining<1} onClick={()=>setPracticeActiveDrivers(ids=>ids.includes(did)?ids.filter(id=>id!==did):[...ids,did])}>{practiceActiveDrivers.includes(did)?"Return to garage":"Send on track"}</button>
+                  {damaged&&<button className="rounded bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-40" disabled={busy||remaining<15} title={remaining<15?"Insufficient session time for repair":""} onClick={()=>perform(()=>repairManagedCar(did,15))}>Repair · 15 min</button>}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {runs.length>1&&<button className="text-xs text-cyan-300 underline" onClick={()=>setPracticeHistoryExpanded(previous=>({...previous,[did]:!previous[did]}))}>{practiceHistoryExpanded[did]?"Show latest only":`View all ${runs.length} runs`}</button>}
+                  {(practiceHistoryExpanded[did]?runs:runs.slice(-1)).map(stint=><div key={stint.id} className="rounded border border-white/10 px-2 py-2 text-xs text-slate-300">
+                    <div className="font-semibold">Run {stint.id.split("-").at(-1)} · {stint.start_minute}–{stint.end_minute} min · {stint.programme_id} · {stint.minutes} min</div>
+                    <div>Setup {Number(stint.outcome?.setup_quality||0).toFixed(1)}/100 · Knowledge {Number(stint.outcome?.setup_knowledge||0).toFixed(1)}/100</div>
+                    <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                      <span>Preparation +{Number(stint.outcome?.preparation_gain||0).toFixed(1)}</span>
+                      <span>Fatigue +{Number(stint.outcome?.fatigue_cost||0).toFixed(1)}</span>
+                      <span>Wear factor ×{Number(stint.outcome?.wear_factor||0).toFixed(2)} (session)</span>
+                      <span>Mileage factor ×{Number(stint.outcome?.mileage_factor||0).toFixed(2)} (session)</span>
+                      <span>Qualifying focus +{Number(stint.outcome?.qualifying_bonus||0).toFixed(3)}</span>
+                      <span>Race focus +{Number(stint.outcome?.race_bonus||0).toFixed(3)}</span>
+                      <span>Diagnostics ×{Number(stint.outcome?.reliability_diagnostic_bonus||0).toFixed(2)}</span>
+                      <span>Weather: {stint.outcome?.weather_state||"Unknown"} · wetness {Number(stint.outcome?.track_wetness||0).toFixed(0)}%</span>
+                    </div>
+                    <div className="mt-1 text-cyan-200">{stint.outcome?.feedback}</div>
+                    {stint.outcome?.issue_note&&<div className="text-amber-300">{stint.outcome.issue_note}</div>}
+                  </div>)}
+                </div>
+              </div>;
+            })}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -1461,7 +1560,7 @@ export default function RaceWeekend(){
               </div>
 
               <div className="mt-3 border-t border-white/10 pt-3">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Programme focus</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Selected programme — projected multipliers (not cumulative results)</div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
                   <span title="Multiplies how quickly the setup converges toward the circuit target." className="rounded bg-violet-500/10 px-2 py-1 text-violet-300">Setup learning ×{Number(programme.learningMultiplier||1).toFixed(2)}</span>
                   <span title="Programme qualifying bonus; weather relevance is applied after Practice." className="rounded bg-sky-500/10 px-2 py-1 text-sky-300">Qualifying focus {signedValue(programme.qualifyingBonus||0)}</span>
@@ -1486,7 +1585,7 @@ export default function RaceWeekend(){
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session review</div>
             <h3 className="mt-1 text-lg font-semibold">Practice Complete</h3>
-            <p className="text-sm text-slate-400 mt-1">Session outcomes and setup estimates. Weather relevance indicates similarity between Practice conditions and the forecast session, not driver performance.</p>
+            <p className="text-sm text-slate-400 mt-1">Session outcomes from managed Practice or Quick Simulate. Setup and knowledge are estimates; focus modifiers are not lap-time seconds. Weather relevance describes similarity between Practice and forecast conditions, not driver performance.</p>
           </div>
           {weekend.phase==="practice_complete"&&<button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
             {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to Qualifying":"Advance to Qualifying"}
@@ -1556,6 +1655,20 @@ export default function RaceWeekend(){
                 <span className={"rounded px-2 py-1 "+fatigueTone(fatigueAfter)}>Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {fatigueAfter.toFixed(0)}</span>
                 <span className="rounded bg-white/[0.05] px-2 py-1 text-slate-300">Learning {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
                 <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Wear +{Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-cyan-300">Session gains & costs · {Number(row.managed_stints||0)>0?"Managed Practice":"Quick Simulate"}</div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <div><div className="text-slate-400">Preparation gained</div><div className="font-semibold text-emerald-300">+{Number(row.preparation_gain||0).toFixed(1)}</div></div>
+                  <div><div className="text-slate-400">Qualifying focus earned</div><div className="font-semibold text-sky-300">+{Number(row.qualifying_bonus||0).toFixed(3)}</div></div>
+                  <div><div className="text-slate-400">Race focus earned</div><div className="font-semibold text-sky-300">+{Number(row.race_bonus||0).toFixed(3)}</div></div>
+                  <div><div className="text-slate-400">Final setup quality</div><div className="font-semibold">{Number(row.setup_quality||0).toFixed(1)}/100</div></div>
+                  <div><div className="text-slate-400">Final setup knowledge</div><div className="font-semibold">{Number(row.setup_knowledge||0).toFixed(1)}/100</div></div>
+                  <div><div className="text-slate-400">Fatigue cost</div><div className="font-semibold text-amber-300">+{Number(row.fatigue_cost||0).toFixed(1)}</div></div>
+                </div>
+                {Number(row.managed_stints||0)>0&&<p className="mt-2 text-[11px] text-slate-400">{row.managed_stints} recorded running minutes · focus rewards summed across all selected programmes. Component wear is applied as the session proceeds.</p>}
+                <p className="mt-1 text-[11px] text-slate-500">Mileage means relative running distance, not a lap counter. Actual laps and lap times require a separate timing model.</p>
               </div>
 
               <div className="mt-3 rounded-lg border border-white/10 bg-[#0f141d] p-3">

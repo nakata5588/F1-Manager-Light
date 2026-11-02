@@ -116,3 +116,50 @@ test("RW8.12 seed scopes official Practice setup without changing the input cont
   assert.equal(a.results[0].programme_id,b.results[0].programme_id);
   assert.equal(a.results[0].target_setup.aeroBalance,b.results[0].target_setup.aeroBalance);
 });
+
+test("managed canonical stints carry setup forward and scale fatigue to elapsed running",()=>{
+  const full=simulateCanonicalPractice(input()).results[0];
+  const firstInput=input();
+  firstInput.entrants=[{...firstInput.entrants[0],stintMinutes:10}];
+  const first=simulateCanonicalPractice(firstInput);
+  const firstRow=first.results[0];
+  assert.ok(firstRow.fatigue_cost<full.fatigue_cost);
+  assert.ok(firstRow.setup_knowledge<full.setup_knowledge);
+  const secondInput=structuredClone(firstInput);
+  secondInput.weekendKey+=":stint:2";
+  secondInput.entrants[0].priorSetup=firstRow.setup;
+  secondInput.entrants[0].priorKnowledge=firstRow.setup_knowledge;
+  secondInput.entrants[0].conditionBefore=first.effects.conditionByDriver.D1;
+  const second=simulateCanonicalPractice(secondInput).results[0];
+  assert.deepEqual(second.initial_setup,firstRow.setup);
+  assert.ok(second.setup_knowledge>firstRow.setup_knowledge);
+  assert.ok(second.setup_quality>=firstRow.setup_quality,
+    "continued setup work must not randomly undo the previous stint");
+  for(const key of Object.keys(second.target_setup)){
+    const before=Math.abs(firstRow.setup[key]-second.target_setup[key]);
+    const after=Math.abs(second.setup[key]-second.target_setup[key]);
+    assert.ok(after<=before+0.11,`setup ${key} must converge from the previous actual value`);
+  }
+  assert.ok(second.fatigue_before>=firstRow.fatigue_after);
+});
+
+test("managed stint programme focus earns proportional rather than full-session rewards",()=>{
+  const state=input();
+  state.entrants=[{...state.entrants[0],stintMinutes:10,requestedProgrammeId:"qualifying"}];
+  const q=simulateCanonicalPractice(state).results[0];
+  state.entrants[0].requestedProgrammeId="race";
+  const r=simulateCanonicalPractice(state).results[0];
+  assert.ok(q.qualifying_bonus>r.qualifying_bonus);
+  assert.ok(r.race_bonus>q.race_bonus);
+  assert.ok(q.qualifying_bonus<0.3);
+  assert.ok(r.race_bonus<0.3);
+});
+
+test("one-minute focus and wear retain fractional precision instead of becoming zero",()=>{
+  const state=input();
+  state.entrants=[{...state.entrants[0],stintMinutes:1,requestedProgrammeId:"qualifying"}];
+  const result=simulateCanonicalPractice(state).results[0];
+  assert.ok(result.qualifying_bonus>0);
+  assert.ok(result.mileage_factor>0);
+  assert.ok(result.wear_factor>0);
+});

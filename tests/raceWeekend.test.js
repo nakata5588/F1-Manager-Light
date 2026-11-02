@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "../src/core/saveSafety.js";
 import {
   completePracticeSession,
+  runManagedPracticeStint,
+  advanceManagedPracticeMinute,
   completeQualifyingSession,
   completeRaceSession,
   continueRaceWeekendSession,
@@ -969,4 +971,40 @@ test("RW8.14J canonical runtime owns resume window and finalization readiness",(
   };
   assert.equal(raceWindowForWeekend(finished),"live");
   assert.equal(raceWeekendCanFinalizeLiveRace(finished),true);
+});
+
+
+test("managed 1980 Practice integrates two cars, cumulative effects, JSON restore and Qualifying",()=>{
+  let gs=createRaceWeekendState(fixture({seed:"managed-practice-integration-1980"}),{roundIndex:0,gp});
+  assert.equal(gs.raceWeekendState.phase,"practice");
+  const before=structuredClone(gs.driverAttributes);
+  gs=advanceManagedPracticeMinute(gs,{driverIds:["D1","D2"]});
+  assert.equal(gs.raceWeekendState.managed_practice.elapsed_minutes,1);
+  assert.equal(gs.raceWeekendState.managed_practice.stints.length,2);
+  const firstRows=gs.raceWeekendState.managed_practice.stints;
+  assert.deepEqual(new Set(firstRows.map(x=>x.driver_id)),new Set(["D1","D2"]));
+  assert.ok(firstRows.every(x=>Number(x.outcome?.wear_factor)>0));
+  assert.ok(firstRows.every(x=>Number(x.outcome?.mileage_factor)>0));
+  const snapshot=JSON.parse(JSON.stringify(gs));
+  let restored=advanceManagedPracticeMinute(snapshot,{driverIds:["D1","D2"]});
+  const nextRows=restored.raceWeekendState.managed_practice.stints;
+  assert.equal(restored.raceWeekendState.managed_practice.elapsed_minutes,2);
+  assert.equal(nextRows.length,4);
+  for(const id of ["D1","D2"]){
+    const rows=nextRows.filter(x=>x.driver_id===id);
+    assert.equal(rows.length,2);
+    assert.deepEqual(rows[1].outcome.initial_setup,rows[0].outcome.setup);
+    assert.ok(rows[1].outcome.setup_knowledge>=rows[0].outcome.setup_knowledge);
+    assert.ok(restored.driverAttributes[id]?.fatigue>=Number(before[id]?.fatigue||0));
+  }
+  restored=completePracticeSession(restored,{gp});
+  assert.equal(restored.raceWeekendState.phase,"practice_complete");
+  const rows=restored.raceWeekendState.practice.results;
+  assert.equal(rows.length,4);
+  assert.equal(new Set(rows.map(x=>String(x.driver_id))).size,4);
+  assert.ok(rows.filter(x=>["D1","D2"].includes(String(x.driver_id))).every(x=>x.managed_stints===2));
+  restored=continueRaceWeekendSession(restored);
+  assert.equal(restored.raceWeekendState.phase,"qualifying");
+  restored=completeQualifyingSession(restored,{gp});
+  assert.ok(restored.raceWeekendState.qualifying);
 });
