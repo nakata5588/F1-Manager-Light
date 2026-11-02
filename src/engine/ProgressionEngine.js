@@ -359,7 +359,6 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
   const trainingDay=dow>=1&&dow<=5;
   const conditions={...(gs?.driverAttributes||{})};
   const ledger={...(gs?.driverDevelopmentTraining||{})};
-  const focusMeta={...(gs?.driverDevelopmentFocusMeta||{})};
   let mentalStateLog={...(gs?.driverMentalStateLog||{})};
 
   for(const driver of gs?.drivers||[]){
@@ -373,12 +372,7 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
       :{monthKey,groupKey,trainingDays:0,fatigueSpent:0,lastTrainingDate:null};
     previous.groupKey=groupKey;
 
-    // If the focus was carried over from the previous month, the first
-    // training day automatically commits it for the new month. This prevents
-    // switching groups halfway through a month's accumulated workload.
-    if(trainingDay&&String(focusMeta?.[did]?.monthKey||"")!==monthKey){
-      focusMeta[did]={groupKey,monthKey,selectedAt:dateISO,autoCarried:true};
-    }
+    // A carried focus remains editable until an explicit monthly choice.
     if(!trainingDay||previous.lastTrainingDate===dateISO){
       ledger[did]=previous;
       continue;
@@ -409,7 +403,6 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
     driverAttributes:conditions,
     driverMentalStateLog:mentalStateLog,
     driverDevelopmentTraining:ledger,
-    driverDevelopmentFocusMeta:focusMeta,
   };
 }
 
@@ -462,6 +455,21 @@ export function applyProgressionTick(gs){
     );
     next.driverRatings=ratings;
     next._lastDriverProgressionMonth=monthKey;
+    const previousMonth=String(gs?._lastDriverProgressionMonth||"");
+    if(/^\d{4}-\d{2}$/.test(previousMonth)){
+      const existing=Array.isArray(gs?.inbox)?gs.inbox:[];
+      const reports=Object.entries(gs?.driverDevelopmentTraining||{})
+        .filter(([,row])=>row?.monthKey===previousMonth&&Number(row.trainingDays||0)>0)
+        .filter(([did])=>!existing.some((msg)=>String(msg?.id)===`driver-training-${previousMonth}-${did}`))
+        .map(([did,row])=>{
+          const driver=(gs?.drivers||[]).find((d)=>idOf(d)===did);
+          const name=String(driver?.display_name||driver?.name||did);
+          const gains=changes.filter((ch)=>String(ch.driverId)===did&&ch.source===`development_focus_${row.groupKey}`);
+          const details=gains.length?gains.map((ch)=>`${ch.attr}: ${Number(ch.before).toFixed(2)} → ${Number(ch.after).toFixed(2)} (${ch.delta>0?"+":""}${Number(ch.delta).toFixed(2)})`).join("\n"):"No focused attribute improvement this month.";
+          return {id:`driver-training-${previousMonth}-${did}`,type:"DEV",title:`Training completed: ${name} (${previousMonth})`,date:dateISO,read:false,unread:true,sender:"Driver Development",body:`${Number(row.trainingDays)} training days · ${row.groupKey} focus\n${details}\nChoose a new focus in the driver profile.`};
+        });
+      if(reports.length)next.inbox=[...reports,...existing].slice(0,200);
+    }
 
     if(changes.length){
       const log={...(gs.driverAttrLog||{})};

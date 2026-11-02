@@ -9,6 +9,7 @@ import {
   driverWheelToWheelBehaviour,
 } from "../src/domain/driverAttributeGroups.js";
 import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
+import { driverDevelopmentFocusState } from "../src/domain/driverAttributeGroups.js";
 
 const rating={
   year:1980,
@@ -125,7 +126,7 @@ test("monthly progression applies the selected group focus and logs its source",
   assert.equal(next.driverDevelopmentTraining.D1.monthKey,"1980-02");
 });
 
-test("monthly focus adds weekday fatigue progressively and auto-locks a carried focus",()=>{
+test("monthly focus adds weekday fatigue but does not auto-lock a carried focus",()=>{
   const gs={
     activeYear:1980,
     currentDateISO:"1980-02-04",
@@ -143,7 +144,8 @@ test("monthly focus adds weekday fatigue progressively and auto-locks a carried 
   assert.ok(next.driverAttributes.D1.fatigue<10,"normal weekday recovery should now exceed the light development load");
   assert.equal(next.driverDevelopmentTraining.D1.trainingDays,1);
   assert.equal(next.driverDevelopmentTraining.D1.fatigueSpent,2);
-  assert.equal(next.driverDevelopmentFocusMeta.D1.monthKey,"1980-02");
+  assert.equal(next.driverDevelopmentFocusMeta.D1.monthKey,"1980-01");
+  assert.equal(driverDevelopmentFocusState(next,"D1").locked,false);
   assert.equal(next.driverDevelopmentFocusMeta.D1.groupKey,"pace");
 
   const sameDay=applyProgressionTick(next);
@@ -175,4 +177,14 @@ test("monthly development training is paused during an active race weekend",()=>
   const next=applyProgressionTick(gs);
   assert.equal(next.driverDevelopmentTraining.D1.trainingDays,8);
   assert.ok(next.driverAttributes.D1.fatigue<30,"driver should recover without an extra development-training load");
+});
+
+test("completed monthly driver training sends a single report",()=>{
+  const gs={activeYear:1980,currentDateISO:"1980-03-01",_lastDriverProgressionMonth:"1980-02",team:{team_id:"T1"},drivers:[{driver_id:"D1",display_name:"Test Driver",age:22}],driverRatings:[{...rating}],contracts:[{year:1980,driver_id:"D1",team_id:"T1",role:"Main Driver",status:"active",contract_until_year:1981}],driverDevelopmentFocus:{D1:"pace"},driverDevelopmentFocusMeta:{D1:{groupKey:"pace",monthKey:"1980-01"}},driverDevelopmentTraining:{D1:{monthKey:"1980-02",groupKey:"pace",trainingDays:18,fatigueSpent:36}},inbox:[]};
+  const next=applyProgressionTick(gs);
+  const report=next.inbox.find(m=>m.id==="driver-training-1980-02-D1");
+  assert.ok(report);
+  assert.match(report.body,/training days/);
+  assert.equal(driverDevelopmentFocusState(next,"D1").locked,false);
+  assert.equal(applyProgressionTick(next).inbox.filter(m=>m.id===report.id).length,1);
 });

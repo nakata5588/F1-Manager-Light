@@ -265,6 +265,7 @@ export default function NewGame() {
     if(step!==3)return new Map();
     return newGameTeamPreviews(gameState);
   },[step,gameState?.activeYear,gameState?.seasonPackMeta?.year,teamsForYear]);
+  const rankedTeamsForYear=[...teamsForYear].sort((a,b)=>{ const pa=teamPreviews.get(getTeamId(a))?.championshipProjection; const pb=teamPreviews.get(getTeamId(b))?.championshipProjection; return (Number(pa?.nominalPosition)||999)-(Number(pb?.nominalPosition)||999) || (Number(pb?.score)||0)-(Number(pa?.score)||0) || String(getTeamDisplayName?.(a)||'').localeCompare(String(getTeamDisplayName?.(b)||'')); });
   const selectedTeamPreview=selectedTeam?teamPreviews.get(getTeamId(selectedTeam))||null:null;
   const managerPreview=useMemo(
     ()=>createManagerProfile(manager,{year:+year,team:selectedTeam||{name:teamId==="create"?"New Team":"Unattached"}}),
@@ -494,31 +495,31 @@ export default function NewGame() {
                     <p className="mt-1 text-sm text-slate-400">Compare the historical opening conditions for {year}. These values describe the team you are taking over before the Save World begins.</p>
                   </div>
 
-                  <div className="grid gap-3 xl:grid-cols-[400px_minmax(0,1fr)]">
+                  <div className="grid gap-3 xl:grid-cols-[minmax(480px,0.95fr)_minmax(0,1.05fr)]">
                     <div className="max-h-[calc(100vh-230px)] space-y-1.5 overflow-y-auto pr-1">
                       <button onClick={() => setTeamId("create")} className={"w-full rounded-lg border px-3 py-2 text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
                         <div className="font-medium">Create New Team</div>
                         <div className="text-[10px] text-slate-500">Brand-new privateer entry</div>
                       </button>
 
-                      {teamsForYear.map((t) => {
+                      {rankedTeamsForYear.map((t) => {
                         const id = getTeamId(t);
                         const title = safeText(getTeamDisplayName?.(t) ?? pick(t, ["team_name", "name", "short_name"], id), id);
                         const preview=teamPreviews.get(id);
                         const selected=teamId===id;
                         return (
                           <button key={id} onClick={() => setTeamId(id)} className={"w-full rounded-lg border px-2.5 py-2 text-left transition "+(selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2">
                               <TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-sm font-semibold">{title}</div>
                                 <div className={"truncate text-[11px] font-medium "+projectionTone(preview?.championshipProjection)}>{preview?.championshipExpectationLabel||"—"}</div>
                               </div>
-                              <div className="grid shrink-0 grid-cols-4 gap-1">
+                              <div className="grid shrink-0 grid-cols-2 gap-1">
                                 <div className="min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Rep</div><div className={"text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.reputation??preview?.reputation)}>{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
-                                <div className="min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Hist</div><div className={"text-xs font-semibold "+valueTone(preview?.historicalStrength?.overall)}>{preview?.historicalStrength?.overall!=null?Math.round(preview.historicalStrength.overall):"—"}</div></div>
+                                <div className="hidden min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Hist</div><div className={"text-xs font-semibold "+valueTone(preview?.historicalStrength?.overall)}>{preview?.historicalStrength?.overall!=null?Math.round(preview.historicalStrength.overall):"—"}</div></div>
                                 <div className="min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Car</div><div className={"text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.car??preview?.car?.overall)}>{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
-                                <div className="min-w-[62px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Budget</div><div className={"truncate text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.budget)}>{fmtMoney(preview?.startingBudget)}</div></div>
+                                <div className="hidden min-w-[62px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Budget</div><div className={"truncate text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.budget)}>{fmtMoney(preview?.startingBudget)}</div></div>
                               </div>
                             </div>
                           </button>
@@ -526,7 +527,7 @@ export default function NewGame() {
                       })}
                     </div>
 
-                    <div className="min-h-[430px] rounded-xl border border-white/10 bg-[#0d0f15] p-4 xl:sticky xl:top-3 xl:self-start">
+                    <div className="min-w-0 rounded-xl border border-white/10 bg-[#0d0f15] p-4 xl:sticky xl:top-3 xl:self-start">
                       {teamId==="create" ? (
                         <div className="flex h-full min-h-[380px] flex-col items-center justify-center text-center">
                           <FallbackAvatar title="Create New Team" large/>
@@ -547,7 +548,7 @@ export default function NewGame() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7">
+                          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 2xl:grid-cols-4">
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[11px] uppercase tracking-wide text-slate-500">Reputation</div>
                               <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.reputation??selectedTeamPreview.reputation)}>{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>

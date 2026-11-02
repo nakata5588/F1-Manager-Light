@@ -1006,6 +1006,13 @@ export default function DriverModal({ entity, onClose, pageMode = false, onBack 
           selectedAt:gameDateISO,
         },
       },
+      driverDevelopmentTraining:{
+        ...(gs?.driverDevelopmentTraining||{}),
+        [driverId]:gs?.driverDevelopmentTraining?.[driverId]?.monthKey===monthKey &&
+          gs?.driverDevelopmentTraining?.[driverId]?.groupKey===groupKey
+          ?gs.driverDevelopmentTraining[driverId]
+          :{monthKey,groupKey,trainingDays:0,fatigueSpent:0,lastTrainingDate:null},
+      },
     });
   }
 
