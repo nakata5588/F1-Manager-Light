@@ -45,3 +45,10 @@ export function advancePracticeClock(state,minutes=1){
   if(elapsed===state.elapsed_minutes)return state;
   return {...state,elapsed_minutes:elapsed};
 }
+
+/** Drivers with recorded managed stints keep their accumulated result;
+ * every other entrant must still receive an official Practice result. */
+export function practiceDriversRequiringSimulation(entries=[],managedStints=[]){
+  const completed=new Set(managedStints.map(row=>String(row.driver_id)));
+  return entries.map(entry=>String(entry.driver_id??"")).filter(id=>id&&!completed.has(id));
+}
