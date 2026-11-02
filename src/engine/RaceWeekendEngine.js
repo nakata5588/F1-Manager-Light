@@ -3,7 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
-import { managedPracticeState, appendPracticeStint, canRunPracticeStint, markPracticeDamage, repairPracticeCar, advancePracticeClock } from "./ManagedPracticeSession.js";
+import { managedPracticeState, appendPracticeStint, canRunPracticeStint, markPracticeDamage, repairPracticeCar, advancePracticeClock, practiceDriversRequiringSimulation } from "./ManagedPracticeSession.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, restartLiveRaceFromRedFlag, resumeLiveRace } from "./LiveRaceEngine.js";
 import { applyRedFlagDamageRepair, applyRedFlagRestartStrategy, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
@@ -432,10 +432,9 @@ export function completePracticeSession(gs,{gp}={}){
   const targetGp=targetGpForWeekend(weekend,gp);
   const managed=weekend.managed_practice;
   const managedDrivers=new Set((managed?.stints||[]).map(row=>String(row.driver_id)));
-  const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
-  const eligibleIds=(gs?.raceEntryState?.entries||[])
-    .filter(entry=>!managedDrivers.size||String(entry?.team_id)!==playerTeamId)
-    .map(entry=>String(entry.driver_id));
+  const eligibleIds=practiceDriversRequiringSimulation(
+    gs?.raceEntryState?.entries||[],managed?.stints||[]
+  );
   const session=simulatePracticeSession(gs,{
     gp:targetGp,
     selections:weekend.practice_selections||{},
