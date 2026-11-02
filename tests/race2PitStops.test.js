@@ -409,6 +409,27 @@ test("RW8.14K1 adaptive strategy schedules a degradation stop before tyres becom
   assert.equal(car(completed).resources.strategy.plannedStopLap,null);
 });
 
+test("RW8.14K1 adaptive strategy avoids immediate weather pit with moderate wetness",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.35},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1898,
+    distanceAlongLapM:898,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    speedMs:60,
+    speedKmh:216,
+    tyre:{...car(state).tyre,condition:82,category:"dry"},
+  });
+
+  const next=stepRaceState(state);
+  assert.equal(car(next).pitState.active,false);
+});
+
 test("RW8.14K1 adaptive strategy switches tyre category when surface wetness is severe",()=>{
   let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
   state={
