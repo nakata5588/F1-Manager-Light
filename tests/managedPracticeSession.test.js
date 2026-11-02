@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {managedPracticeState,appendPracticeStint,markPracticeDamage,repairPracticeCar,canRunPracticeStint,managedPracticeSummary,advancePracticeClock} from "../src/engine/ManagedPracticeSession.js";
+import {managedPracticeState,appendPracticeStint,markPracticeDamage,repairPracticeCar,canRunPracticeStint,managedPracticeSummary,advancePracticeClock,practiceDriversRequiringSimulation} from "../src/engine/ManagedPracticeSession.js";
 
 test("managed Practice stints consume shared session clock and retain outcomes",()=>{
   const initial=managedPracticeState({});
@@ -54,4 +54,18 @@ test("shared clock advances while cars are idle and survives save/load",()=>{
   assert.equal(advancePracticeClock(saved,100).elapsed_minutes,60);
   assert.equal(canRunPracticeStint(advancePracticeClock(saved,55),"D1",1),false);
   assert.equal(advancePracticeClock(saved,-4),saved);
+});
+
+
+test("final Practice simulates unrun Renault alongside AI but never re-simulates a managed driver",()=>{
+  const entries=[
+    {driver_id:"R1",team_id:"Renault"},
+    {driver_id:"R2",team_id:"Renault"},
+    {driver_id:"F1",team_id:"Ferrari"},
+  ];
+  assert.deepEqual(practiceDriversRequiringSimulation(entries,[{driver_id:"R1"}]),["R2","F1"]);
+  assert.deepEqual(practiceDriversRequiringSimulation(entries,[{driver_id:"R1"},{driver_id:"R2"}]),["F1"]);
+  assert.deepEqual(practiceDriversRequiringSimulation(entries,[]),["R1","R2","F1"]);
+  const restored=JSON.parse(JSON.stringify([{driver_id:"R1"}]));
+  assert.deepEqual(practiceDriversRequiringSimulation(entries,restored),["R2","F1"]);
 });
