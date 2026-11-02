@@ -42,7 +42,7 @@ export function provisionalMonacoSpeedProfile(trackId,year,lengthM,layoutId){
       for(const [,position,peak,width] of MONACO_1976_1985_TURNS){
         const delta=Math.abs(fraction-position);
         const wrapped=Math.min(delta,1-delta);
-        severity=Math.max(severity,peak*0.95*Math.exp(-0.5*(wrapped/(width*0.90))**2));
+        severity=Math.max(severity,peak*0.95*Math.exp(-0.5*(wrapped/(width*1.30))**2));
       }
       return {distanceM:Number((i*spacing).toFixed(3)),severity:Number(severity.toFixed(4))};
     }),
