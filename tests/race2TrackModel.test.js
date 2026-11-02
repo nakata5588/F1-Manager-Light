@@ -506,12 +506,7 @@ test("Long Beach Race TrackModel uses sourced F1 distances, no visual-controlled
     assert.equal(m.geometry.quality,"derived_provisional");
     assert.ok(m.racingLine?.points?.length>=24);
     assert.ok(trackPoseAtDistance(m,metres-1),"continuous model "+year);
-    if(year===1980){
-      assert.equal(m.speedProfile.source,"historical_named_turn_reference_approximate");
-      assert.equal(m.speedProfile.provisional,true);
-    }else{
-      assert.equal(m.speedProfile.source,"neutral");
-    }
+    assert.equal(m.speedProfile.source,"neutral");
     assert.equal(m.pitLane.available,false);
   }
   for(const year of [1975,1984,1999,2001]){
@@ -587,7 +582,12 @@ test("Monaco Race TrackModel shares physical lap facts; 1976–85 uses separatel
     assert.equal(m.geometry.quality,"derived_provisional");
     assert.ok(m.racingLine?.points?.length>=24);
     assert.ok(trackPoseAtDistance(m,metres-1));
-    assert.equal(m.speedProfile.source,"neutral");
+    if(year===1980){
+      assert.equal(m.speedProfile.source,"historical_named_turn_reference_approximate");
+      assert.equal(m.speedProfile.provisional,true);
+    }else{
+      assert.equal(m.speedProfile.source,"neutral");
+    }
     assert.equal(m.pitLane.available,false);
   }
   for(const year of [1954,1997,2002]){
