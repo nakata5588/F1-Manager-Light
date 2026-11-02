@@ -506,7 +506,12 @@ test("Long Beach Race TrackModel uses sourced F1 distances, no visual-controlled
     assert.equal(m.geometry.quality,"derived_provisional");
     assert.ok(m.racingLine?.points?.length>=24);
     assert.ok(trackPoseAtDistance(m,metres-1),"continuous model "+year);
-    assert.equal(m.speedProfile.source,"neutral");
+    if(year===1980){
+      assert.equal(m.speedProfile.source,"historical_named_turn_reference_approximate");
+      assert.equal(m.speedProfile.provisional,true);
+    }else{
+      assert.equal(m.speedProfile.source,"neutral");
+    }
     assert.equal(m.pitLane.available,false);
   }
   for(const year of [1975,1984,1999,2001]){
@@ -559,7 +564,7 @@ test("1980 Argentina canonical lap limit is 53, while a saved race retains its o
 });
 
 
-test("Monaco Race TrackModel shares physical lap facts and neutral speed for illustrative SVG",()=>{
+test("Monaco Race TrackModel shares physical lap facts; 1976–85 uses separately sourced provisional physics",()=>{
   const core={track_id:"tr_0056",track_name:"Circuit de Monaco",lap_length_km:3.337};
   for(const [year,metres,id,laps] of [
     [1950,3180,"tr_0056_1950",100],
