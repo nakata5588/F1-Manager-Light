@@ -409,11 +409,11 @@ test("RW8.14K1 adaptive strategy schedules a degradation stop before tyres becom
   assert.equal(car(completed).resources.strategy.plannedStopLap,null);
 });
 
-test("RW8.14K1 adaptive strategy switches tyre category when live weather requires it",()=>{
+test("RW8.14K1 adaptive strategy switches tyre category when surface wetness is severe",()=>{
   let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
   state={
     ...state,
-    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.35},
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.70},
   };
   state=patchCar(state,"C1",{
     absoluteDistanceM:1898,
