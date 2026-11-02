@@ -108,7 +108,7 @@ function ratingFor(gs,driverId){
   return rows.find((row)=>driverIdOf(row)===String(driverId))||{};
 }
 
-export function simulatePracticeSession(gs,{gp={},selections={}}={}){
+export function simulatePracticeSession(gs,{gp={},selections={},driverIds=null,managedStint=null}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return {gameState:gs,practice:null};
 
@@ -128,7 +128,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const entrants=(gs?.raceEntryState?.entries||[]).map((entry)=>{
     const driverId=String(entry?.driver_id??"");
     const teamId=String(entry?.team_id??"");
-    if(!driverId||!teamId)return null;
+    if(!driverId||!teamId||(driverIds&&!driverIds.includes(driverId)))return null;
     const engineering=teamSetupSupport(gs,teamId);
     return {
       driverId,
@@ -142,13 +142,18 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       conditionBefore:{...driverCondition(gs,driverId)},
       fatiguePerformancePenaltyBefore:fatiguePenalty(gs,driverId),
       reliabilityProfile:{...carReliabilityProfile(gs,teamId,driverId)},
+      ...(managedStint?{
+        stintMinutes:managedStint.minutes,
+        priorSetup:managedStint.priorSetup||null,
+        priorKnowledge:managedStint.priorKnowledge||0,
+      }:{}),
     };
   }).filter(Boolean);
 
   const simulated=simulateCanonicalPractice({
     modelVersion:PRACTICE_MODEL_VERSION,
     seed:getSaveSeed(gs),
-    weekendKey:weekend.key,
+    weekendKey:managedStint?`${weekend.key}:stint:${managedStint.sequence}`:weekend.key,
     trackProfile:profile,
     sessionWeather:sessionWeather?{...sessionWeather}:null,
     trackRisk:profile.inputs.crash_risk,
