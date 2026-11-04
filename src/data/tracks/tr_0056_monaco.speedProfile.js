@@ -34,7 +34,7 @@ export function provisionalMonacoSpeedProfile(trackId,year,lengthM,layoutId){
     referenceTurns:MONACO_1976_1985_TURNS.length,
     alignment:"unverified_normalized_distance_estimate",
     brakingModel:"distance_sensitive",
-    cornerRetentionFactor:0.70,
+    cornerRetentionFactor:0.43,
     sampleSpacingM:Number(spacing.toFixed(6)),windowM:null,
     samples:Array.from({length:count},(_,i)=>{
       const fraction=i/count;
