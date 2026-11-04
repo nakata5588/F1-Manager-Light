@@ -143,9 +143,30 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
         raceability_hazard_index:Math.round(wetness*55),
       };
     });
+    // The original fixture retained dry tyres chosen for its dry forecast,
+    // even when this test overrode the starting surface to 74–82% wet.
+    // Rebuild ONLY the initial selection from observed lights-out conditions;
+    // future weather remains hidden and the race engine owns all pit changes.
+    const openingWetness=timeline[0].track_wetness;
+    const openingCategory=openingWetness>=0.68?"wet":openingWetness>=0.22?"intermediate":"dry";
+    const startingCars=input.cars.map(car=>{
+      const options=car.resourceSetup?.tyres||[];
+      const available=options.filter(tyre=>String(tyre.category||"dry")===openingCategory);
+      assert.ok(available.length>0,"Missing "+openingCategory+" tyre for "+car.carId);
+      const chosen=available.slice().sort((a,b)=>
+        Number(b.grip_index||0)-Number(a.grip_index||0)
+      )[0];
+      return {
+        ...car,
+        resourceSetup:{
+          ...car.resourceSetup,
+          strategy:{...car.resourceSetup.strategy,startTyreId:chosen.tyre_id},
+        },
+      };
+    });
     const override={
-      ...input,seed:"1980-argentina-tyre-"+scenario,
-      weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:timeline[0].track_wetness},
+      ...input,cars:startingCars,seed:"1980-argentina-tyre-"+scenario,
+      weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:openingWetness},
     };
     const initial=startRaceState(createRaceState(override));
     const started=Date.now();
@@ -176,6 +197,8 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
     output.push(line);
     console.log("ARGENTINA_1980_TYRE_BENCH="+JSON.stringify(line));
     assert.equal(line.entrants,24);
+    assert.equal(line.initialTyres[openingCategory],24,"Mismatched starting compound: "+scenario);
+    assert.ok(line.lapOneStops<=2,"Mass first-lap pit stops despite matched starting compound: "+scenario);
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
   assert.equal(output.length,4);
