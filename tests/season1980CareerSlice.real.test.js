@@ -191,6 +191,33 @@ test("1980 Renault: real Argentina Practice -> Q -> full race -> Results -> poin
   assert.equal(nextWeekend.raceWeekendState.phase, "practice");
   assert.equal(nextWeekend.raceWeekendState.roundIndex, 1);
   assert.equal(nextWeekend.results.length, 1, "next GP must not erase Argentina Results");
+  // Extend the real-career gate beyond creating the next weekend: the loaded
+  // Argentina archive must survive Brazil Practice and both qualifying sessions.
+  let secondWeekend = completePracticeSession(nextWeekend, { gp: nextGp });
+  assert.equal(secondWeekend.raceWeekendState.phase, "practice_complete");
+  let secondQualifyingSessions = 0;
+  for (let i = 0; i < 8 && secondWeekend.raceWeekendState.phase !== "grid_ready"; i++) {
+    secondWeekend = {
+      ...secondWeekend,
+      currentDateISO: secondWeekend.raceWeekendState.raceDate,
+    };
+    secondWeekend = continueRaceWeekendSession(secondWeekend);
+    if (secondWeekend.raceWeekendState.phase === "qualifying") {
+      secondWeekend = completeQualifyingSession(secondWeekend, { gp: nextGp });
+      secondQualifyingSessions++;
+    }
+  }
+  assert.equal(secondQualifyingSessions, 2, "Brazil 1980 must complete both qualifying sessions");
+  assert.equal(secondWeekend.raceWeekendState.phase, "grid_ready");
+  assert.ok(secondWeekend.raceWeekendState.startingGrid.rows.length >= 20);
+  assert.deepEqual(secondWeekend.results, nextWeekend.results,
+    "second GP Practice/Qualifying must not modify archived Argentina Results");
+  const secondLoaded = roundTripSave(secondWeekend);
+  assert.equal(secondLoaded.raceWeekendState.phase, "grid_ready");
+  assert.deepEqual(secondLoaded.results, JSON.parse(JSON.stringify(nextWeekend.results)));
+  assert.deepEqual(secondLoaded.raceWeekendState.startingGrid,
+    JSON.parse(JSON.stringify(secondWeekend.raceWeekendState.startingGrid)));
+
   console.log("REAL_1980_CAREER_GATE=" + JSON.stringify({
     openingGp: gp.gp_name,
     nextGp: nextGp.gp_name,
