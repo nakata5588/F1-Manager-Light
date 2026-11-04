@@ -155,40 +155,54 @@ function pitWindowFor(state,car){
   if(reachable==null||remaining<=2)return null;
 
   const currentCategory=text(car?.tyre?.category||"dry");
-  const targetCategory=weatherTyreCategory(state);
-  const weatherMismatch=currentCategory!==targetCategory&&Boolean(bestAvailableTyre(car,targetCategory));
-  // A tyre mismatch alone is not a pit-stop justification. A storm can begin
-  // while the racing line is still dry. Account for pit loss and the number of
-  // laps the replacement tyre is likely to be useful, rather than sending
-  // the entire field into the pits at the first weather-state transition.
   const wetness=finite(state?.weatherState?.track_wetness??state?.trackState?.wetness,null);
-  const rain=clamp(finite(state?.weatherState?.rain_intensity??state?.trackState?.rainIntensity,0),0,1);
-  const delta=finite(state?.weatherState?.wetness_delta??state?.trackState?.wetnessDelta,0);
-  const currentPenalty=(w)=>tyreWeatherPenaltyForWetness(currentCategory,w);
-  const targetPenalty=(w)=>tyreWeatherPenaltyForWetness(targetCategory,w);
-  const horizon=Math.min(12,remaining);
-  let projectedGain=0;
-  if(wetness!=null){
-    for(let ahead=0;ahead<horizon;ahead++){
-      const projected=clamp(wetness+delta*ahead+rain*0.008*ahead,0,1);
-      projectedGain+=currentPenalty(projected)-targetPenalty(projected);
+  if(wetness==null){
+    // Compatibility with legacy saves lacking a measured surface.
+    const targetCategory=weatherTyreCategory(state);
+    if(currentCategory!==targetCategory&&bestAvailableTyre(car,targetCategory)){
+      return {
+        from_lap:reachable,to_lap:Math.min(limit,reachable+1),
+        recommended_lap:reachable,reason:"weather",target_category:targetCategory,
+      };
     }
-  }
-  const severeMismatch=wetness!=null&&(
-    (currentCategory==="dry"&&wetness>=0.55)||
-    (currentCategory==="intermediate"&&wetness>=0.88)||
-    (currentCategory==="wet"&&wetness<=0.06)
-  );
-  const worthStopping=wetness==null||severeMismatch||
-    projectedGain>expectedPitLossSeconds(state,car)+3;
-  if(weatherMismatch&&worthStopping){
-    return {
-      from_lap:reachable,
-      to_lap:Math.min(limit,reachable+1),
-      recommended_lap:reachable,
-      reason:"weather",
-      target_category:targetCategory,
-    };
+  }else{
+    // Evaluate every available weather compound against the current tyre using
+    // the same continuous wetness/pace penalty model as the race-strategy engine.
+    // Weather labels alone never force a stop; only observed wetness and its
+    // measured trend enter the projection (not the hidden future weather).
+    const delta=clamp(finite(state?.weatherState?.wetness_delta??state?.trackState?.wetnessDelta,0),-0.08,0.08);
+    const horizon=Math.min(12,remaining);
+    const projectedWetness=Array.from({length:horizon},(_,ahead)=>
+      clamp(wetness+delta*ahead,0,1)
+    );
+    const currentCost=projectedWetness.reduce((sum,w)=>
+      sum+tyreWeatherPenaltyForWetness(currentCategory,w),0
+    );
+    const candidates=["dry","intermediate","wet"]
+      .filter(category=>category!==currentCategory)
+      .map(category=>({
+        category,tyre:bestAvailableTyre(car,category),
+        penalty:projectedWetness.reduce((sum,w)=>
+          sum+tyreWeatherPenaltyForWetness(category,w),0
+        ),
+      }))
+      .filter(candidate=>candidate.tyre)
+      .sort((a,b)=>a.penalty-b.penalty||a.category.localeCompare(b.category));
+    const best=candidates[0];
+    if(best){
+      const gain=currentCost-best.penalty;
+      const immediateGain=tyreWeatherPenaltyForWetness(currentCategory,wetness)
+        -tyreWeatherPenaltyForWetness(best.category,wetness);
+      const pitLoss=expectedPitLossSeconds(state,car);
+      // A substantial immediate deficit can justify a safety-driven stop.
+      // Otherwise, demand a positive net pace benefit over the pit cost.
+      if(gain>pitLoss+3||(immediateGain>=5&&gain>0)){
+        return {
+          from_lap:reachable,to_lap:Math.min(limit,reachable+1),
+          recommended_lap:reachable,reason:"weather",target_category:best.category,
+        };
+      }
+    }
   }
 
   const strategy=car?.resources?.strategy||{};
