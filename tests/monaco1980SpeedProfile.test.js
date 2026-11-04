@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {provisionalMonacoSpeedProfile,MONACO_1976_1985_TURNS} from "../src/data/tracks/tr_0056_monaco.speedProfile.js";
 import {buildTrackModel} from "../src/race2/track/TrackModel.js";
+import {raceTargetSpeedProfile} from "../src/race2/core/RaceDynamics.js";
 
 test("Monaco 1980 uses provisional era-scoped physical severity rather than flat neutral",()=>{
   const gs={activeYear:1980,coreTracks:[{track_id:"tr_0056",lap_length_km:3.312}],
@@ -27,4 +28,18 @@ test("Monaco provisional physics never leaks across historical layouts or other 
   assert.equal(provisionalMonacoSpeedProfile("tr_0056",1980,3337,"tr_0056_2003_modern"),null);
   assert.equal(provisionalMonacoSpeedProfile("tr_0028",1980,3312,"tr_0056_1976_1985"),null);
   assert.equal(provisionalMonacoSpeedProfile("tr_0056",1980,4309,"tr_0056_1976_1985"),null);
+});
+
+
+test("Monaco 1980 low-speed hairpin target is physically distinct from free straight pace",()=>{
+  const gs={activeYear:1980,coreTracks:[{track_id:"tr_0056",lap_length_km:3.312}]};
+  const model=buildTrackModel(gs,{gp:{track_id:"tr_0056",year:1980,laps:76}});
+  const samples=model.speedProfile.samples;
+  const hairpin=samples.reduce((a,b)=>a.severity>b.severity?a:b);
+  const straight=samples.reduce((a,b)=>a.severity<b.severity?a:b);
+  const car={speedMs:30,performance:{car:{power:80,race:80,chassis:80},driver:{raceScore:80}}};
+  const slow=raceTargetSpeedProfile({track:model},{...car,distanceAlongLapM:hairpin.distanceM});
+  const fast=raceTargetSpeedProfile({track:model},{...car,distanceAlongLapM:straight.distanceM});
+  assert.ok(slow.rawTargetSpeedKmh<95,"old 0.70 retention floor prevented genuinely slow hairpins");
+  assert.ok(fast.rawTargetSpeedKmh>slow.rawTargetSpeedKmh+80);
 });
