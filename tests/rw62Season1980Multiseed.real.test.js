@@ -11,7 +11,7 @@ import {
 import {buildRaceWeekendInput} from "../src/race2/adapters/GameStateInputAdapter.js";
 import {createRaceState} from "../src/race2/core/RaceState.js";
 import {startRaceState} from "../src/race2/core/RaceSimulation.js";
-import {createLiveRaceRunner,runFastRace,runFastRaceToEnd} from "../src/race2/core/RaceRunner.js";
+import {createLiveRaceRunner,runFastRace,runFastRaceToEnd,runCanonicalSteps} from "../src/race2/core/RaceRunner.js";
 import {summarizeRaceBehaviour} from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 import {projectCanonicalRaceStateToOfficialRows} from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import {materializeOfficialRaceRows} from "../src/engine/RaceFinalizationEngine.js";
@@ -160,6 +160,37 @@ test("RW62 real 1980 multi-seed overtaking benchmark: "+which,{timeout:1_500_000
     assert.ok(input.track.lengthM>2500,"do not substitute a short synthetic circuit");
     assert.ok(input.cars.length>=18,"full historical grid requires real cars");
     const initial=startRaceState(createRaceState(input));
+    if(which==="monaco"&&seedIndex===1){
+      const firstId=initial.cars[0]?.carId;
+      const bins=Array.from({length:12},(_,bin)=>({bin,speeds:[],targets:[],accelerations:[],trafficLimited:0,battles:0}));
+      let sampled=0;
+      runCanonicalSteps(initial,1200,{
+        diagnosticSampleEverySteps:5,
+        onStepDiagnostic:row=>{
+          if(!row.sampled)return;
+          const car=row.finalCars?.find(c=>c.carId===firstId);
+          if(!car||Number(car.absoluteDistanceM)>=input.track.lengthM||car.status==="dnf")return;
+          const bin=Math.min(11,Math.max(0,Math.floor(12*Number(car.distanceAlongLapM||0)/input.track.lengthM)));
+          const b=bins[bin];sampled++;
+          b.speeds.push(Number(car.speedKmh||0));
+          b.targets.push(Number(car.targetSpeedKmh||0));
+          b.accelerations.push(Number(car.accelerationMs2||0));
+          if(car.traffic?.limited)b.trafficLimited++;
+          if(car.battle?.phase!=="none")b.battles++;
+        },
+      });
+      const average=xs=>xs.length?Number((xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2)):null;
+      console.log("MONACO_LAP_DIAGNOSTIC="+JSON.stringify({
+        seed,track:input.track.trackId,layout:input.track.layoutId,
+        profileSource:input.track.speedProfile?.source,
+        sampled,carId:firstId,
+        segments:bins.map(b=>({segment:b.bin+1,samples:b.speeds.length,
+          meanKmh:average(b.speeds),minKmh:b.speeds.length?Math.min(...b.speeds):null,
+          maxKmh:b.speeds.length?Math.max(...b.speeds):null,
+          meanTargetKmh:average(b.targets),meanAccelMs2:average(b.accelerations),
+          trafficLimited:b.trafficLimited,battleSteps:b.battles})),
+      }));
+    }
     const live=createLiveRaceRunner(initial);
     for(let step=0;step<60;step++)live.step();
     const prefix=runFastRace(initial,{steps:60});

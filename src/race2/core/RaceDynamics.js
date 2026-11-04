@@ -102,8 +102,10 @@ export function raceTargetSpeedProfile(state,car){
   const straightTarget=eraStraightSpeedKmh(state?.track?.year)*straightFactor;
 
   const handlingScore=chassis*0.55+race*0.20+driver*0.25;
+  // Hairpin circuits may require lower retained corner speed than the former
+  // 0.70 factor floor allowed. Existing profiles at >=0.70 are unchanged.
   const cornerRetentionFactor=clamp(
-    finite(state?.track?.speedProfile?.cornerRetentionFactor,1),0.7,1.1
+    finite(state?.track?.speedProfile?.cornerRetentionFactor,1),0.35,1.1
   );
   const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44)*
     cornerRetentionFactor;
