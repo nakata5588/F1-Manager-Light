@@ -337,7 +337,19 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
     const strategy=car?.resources?.strategy||{};
     const baseWindow=pitWindowFor(stateLike,car);
     const targetCategory=baseWindow?.target_category??text(car?.tyre?.category||"dry");
-    const nextTyre=baseWindow?bestAvailableTyre(car,targetCategory,{allowSameId:baseWindow.reason!=="weather"}):null;
+    const requestedTyre=(car?.resources?.availableTyres||[]).find(row=>
+      String(row?.tyre_id??"")===String(strategy?.nextTyreId??"")&&
+      text(row?.category||"dry")===targetCategory
+    )??null;
+    // Honour the configured specification at ordinary planned stops when
+    // it remains suitable. A stale dry request must not override a wet tyre
+    // during a weather/degradation stop; refitting the same specification
+    // is allowed because its ID denotes a compound, not a physical set.
+    const nextTyre=baseWindow
+      ?baseWindow.reason==="weather"
+        ?bestAvailableTyre(car,targetCategory)
+        :requestedTyre??bestAvailableTyre(car,targetCategory,{allowSameId:true})
+      :null;
     const position=positionByCar.get(String(car?.carId??""))??null;
     const repairDecision=repairDecisionFor(stateLike,car,{
       window:baseWindow,
