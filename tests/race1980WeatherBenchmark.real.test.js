@@ -183,11 +183,16 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
       dnf:Boolean(car.dnf||car.status==="dnf"),
     }));
     const stops=byCar.flatMap(car=>car.stops.map(stop=>({...stop,carId:car.id})));
+    const wrongSurfaceStops=stops.filter(stop=>{
+      const wetness=timeline[Math.max(0,Math.min(timeline.length-1,Number(stop.lap||1)-1))].track_wetness;
+      return wetness>=0.65&&/_(hard|soft)$/.test(String(stop.tyre||""));
+    });
     const line={
       scenario,seed:override.seed,startingWetness:timeline[0].track_wetness,
       entrants:initial.cars.length,laps:input.track.laps,
       ticks:finished.tick,wallMs:Date.now()-started,
       pitStops:stops.length,lapOneStops:stops.filter(stop=>Number(stop.lap)===1).length,
+      wrongSurfaceStops:wrongSurfaceStops.length,
       dnfs:byCar.filter(car=>car.dnf).length,
       initialTyres:Object.fromEntries(["dry","intermediate","wet"].map(k=>[k,byCar.filter(c=>c.initial===k).length])),
       firstStops:stops.slice(0,25),stopsByReason:Object.fromEntries(
@@ -199,6 +204,7 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
     assert.equal(line.entrants,24);
     assert.equal(line.initialTyres[openingCategory],24,"Mismatched starting compound: "+scenario);
     assert.ok(line.lapOneStops<=2,"Mass first-lap pit stops despite matched starting compound: "+scenario);
+    assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
   assert.equal(output.length,4);
