@@ -490,6 +490,24 @@ test("Wet crossover keeps intermediates when the track is damp but stable",()=>{
 
 
 
+test("Wet degradation fits a fresh wet set instead of an old dry next-tyre intent",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"HEAVY_RAIN",track_wetness:0.82,wetness_delta:0},
+    trackState:{...(state.trackState||{}),wetness:0.82},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:3898,distanceAlongLapM:898,
+    completedLaps:3,lap:4,sector:3,
+    tyre:{...car(state).tyre,tyre_id:"wet",category:"wet",condition:33},
+  });
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.equal(forecast?.pit_reason,"degradation");
+  assert.equal(forecast?.next_tyre_id,"wet");
+  assert.notEqual(forecast?.next_tyre_id,"hard");
+});
+
 test("RW11D canonical strategy forecast exposes pit window, rejoin, traffic and finish projection",()=>{
   let state=runningState({cars:3,plannedStopLap:null,pitPlan:"adaptive",laps:20});
   state=patchCar(state,"C1",{
