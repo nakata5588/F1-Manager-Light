@@ -216,6 +216,7 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
     assert.equal(line.initialTyres[openingCategory],line.entrants,"Mismatched starting compound: "+scenario);
     assert.ok(line.lapOneStops<=2,"Mass first-lap pit stops despite matched starting compound: "+scenario);
     assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
+    assert.equal(line.rapidRepeatStops,0,"Two pit stops in <=2 laps: "+scenario+" / "+seedTag);
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
   assert.equal(output.length,selected.length);
