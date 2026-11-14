@@ -81,10 +81,10 @@ function weatherTyreCategory(state){
   return "dry";
 }
 
-function bestAvailableTyre(car,category){
+function bestAvailableTyre(car,category,{allowSameId=false}={}){
   const currentId=String(car?.tyre?.tyre_id??"");
   const exact=(car?.resources?.availableTyres||[])
-    .filter((row)=>text(row?.category||"dry")===category&&String(row?.tyre_id??"")!==currentId)
+    .filter((row)=>text(row?.category||"dry")===category&&(allowSameId||String(row?.tyre_id??"")!==currentId))
     .sort((a,b)=>
       finite(b?.grip_index,75)-finite(a?.grip_index,75)||
       finite(a?.wear_rate,0.018)-finite(b?.wear_rate,0.018)||
@@ -337,7 +337,7 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
     const strategy=car?.resources?.strategy||{};
     const baseWindow=pitWindowFor(stateLike,car);
     const targetCategory=baseWindow?.target_category??text(car?.tyre?.category||"dry");
-    const nextTyre=baseWindow?bestAvailableTyre(car,targetCategory):null;
+    const nextTyre=baseWindow?bestAvailableTyre(car,targetCategory,{allowSameId:baseWindow.reason!=="weather"}):null;
     const position=positionByCar.get(String(car?.carId??""))??null;
     const repairDecision=repairDecisionFor(stateLike,car,{
       window:baseWindow,
