@@ -13,6 +13,7 @@ import {
   projectedTyreWearPerLap,
   tyreConditionEffects,
 } from "../../domain/raceTyreModel.js";
+import { tyreWeatherPenaltyForWetness } from "../../engine/TyreCrossoverEngine.js";
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -407,7 +408,23 @@ function updateEngineTemperature(state,previous,next,stepMs){
   return clamp(current+(target-current)*alpha,55,135);
 }
 
-export function raceResourcePerformance(car){
+// Turn the shared weather penalty (seconds per representative lap) into a
+// continuous, dimensionless pace factor. Physics and strategy now depend on the
+// same tyre-category crossover; no new wetness switch thresholds are needed.
+// The 45 m/s average is only a conservative reference for converting units,
+// not a track-specific lap-time target or a replacement for the race dynamics.
+export function canonicalTyreWeatherPaceFactor(state,car){
+  if(!state)return 1;
+  const wetness=raceTrackWetness(state);
+  const penalty=Math.max(0,tyreWeatherPenaltyForWetness(
+    String(car?.tyre?.category||"dry").toLowerCase(),wetness
+  ));
+  const lengthM=Math.max(1000,finite(state?.track?.lengthM,4500));
+  const referenceLapS=Math.max(45,lengthM/45);
+  return clamp(referenceLapS/(referenceLapS+penalty),0.75,1);
+}
+
+export function raceResourcePerformance(car,state=null){
   const tyre=car?.tyre||{};
   const resources=car?.resources||{};
   const conditionGrip=clamp(finite(tyre?.grip_multiplier,1),0.65,1.05);
@@ -416,7 +433,9 @@ export function raceResourcePerformance(car){
     finite(tyre?.temperature_c,90)-finite(tyre?.optimal_temperature_c,90)
   );
   const tempPenalty=clamp(Math.max(0,tempDelta-6)*0.0035,0,0.12);
-  const tyreFactor=clamp(baseGrip*conditionGrip*(1-tempPenalty),0.72,1.05);
+  const dryTyreFactor=clamp(baseGrip*conditionGrip*(1-tempPenalty),0.72,1.05);
+  const weatherPaceFactor=canonicalTyreWeatherPaceFactor(state,car);
+  const tyreFactor=clamp(dryTyreFactor*weatherPaceFactor,0.55,1.05);
 
   const initialFuel=Math.max(1,finite(resources?.initialFuelKg,finite(car?.fuelKg,1)));
   const fuelFraction=clamp(finite(car?.fuelKg,0)/initialFuel,0,1);
@@ -442,7 +461,7 @@ export function raceResourcePerformance(car){
     1.06
   );
   const accelerationMultiplier=clamp(
-    (1-fuelMassPenalty*1.7)*(1-fuelStarvationPenalty)*(1-enginePenalty),
+    (1-fuelMassPenalty*1.7)*(1-fuelStarvationPenalty)*(1-enginePenalty)*Math.sqrt(weatherPaceFactor),
     0.78,
     1.02
   );
@@ -451,6 +470,7 @@ export function raceResourcePerformance(car){
     paceMultiplier:round(paceMultiplier,6),
     accelerationMultiplier:round(accelerationMultiplier,6),
     tyreGripMultiplier:round(tyreFactor,6),
+    tyreWeatherPaceMultiplier:round(weatherPaceFactor,6),
     tyreTemperaturePenalty:round(tempPenalty,6),
     fuelMassPenalty:round(fuelMassPenalty,6),
     fuelStarvationPenalty:round(fuelStarvationPenalty,6),

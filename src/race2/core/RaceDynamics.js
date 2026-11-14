@@ -139,7 +139,7 @@ export function raceTargetSpeedProfile(state,car){
         Math.max(0.01,1-cornerRetention),0,1
     );
   }
-  const resourcePerformance=raceResourcePerformance(car);
+  const resourcePerformance=raceResourcePerformance(car,state);
   const rawTargetSpeedKmh=Math.max(
     55,
     straightTarget*(1-effectiveSeverity*(1-cornerRetention))
@@ -191,7 +191,7 @@ export function raceAccelerationForTarget(state,car,targetSpeedKmh){
   }
 
   if(delta>0.05){
-    const resourcePerformance=raceResourcePerformance(car);
+    const resourcePerformance=raceResourcePerformance(car,state);
     const baseAcceleration=(3.2+power*0.035)*
       finite(resourcePerformance?.accelerationMultiplier,1);
     const remainingRatio=targetMs>0?clamp(delta/targetMs,0,1):0;

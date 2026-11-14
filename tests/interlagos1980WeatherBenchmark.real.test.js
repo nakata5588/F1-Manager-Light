@@ -1,0 +1,247 @@
+// Real-data regression gate for the first playable 1980 Renault Grand Prix.
+// This deliberately calls the gameplay weekend/finalization boundaries, not a
+// synthetic one-lap race or an independent Results calculator.
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import { isRaceDriverContract } from "../src/domain/contractRoles.js";
+import {
+  createRaceWeekendState,
+  completePracticeSession,
+  completeQualifyingSession,
+  continueRaceWeekendSession,
+  completeRaceSession,
+  syncRaceWeekendPhaseForDate,
+  raceWeekendSchedule,
+  shouldCreateWeekendForDate,
+} from "../src/engine/RaceWeekendEngine.js";
+import { buildRaceWeekendInput } from "../src/race2/adapters/GameStateInputAdapter.js";
+import { createRaceState } from "../src/race2/core/RaceState.js";
+import { startRaceState } from "../src/race2/core/RaceSimulation.js";
+import { createLiveRaceRunner, runFastRace, runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
+import { attachCanonicalRaceRuntime } from "../src/race2/runtime/RaceRuntime.js";
+import { prepareGameStateForSave, extractGameStateFromStoredSave } from "../src/core/saveSafety.js";
+
+function roundTripSave(state) {
+  // The v2 manual/Continue payload is JSON, with this migration entry on load.
+  const serialized = JSON.stringify(prepareGameStateForSave(state));
+  return extractGameStateFromStoredSave(JSON.parse(serialized));
+}
+
+test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
+  timeout: 1_500_000,
+}, async () => {
+  const pack = JSON.parse(await fs.readFile(
+    new URL("../public/data/seasons/1980/season.json", import.meta.url), "utf8"
+  ));
+  assert.equal(pack.validation?.ok, true, JSON.stringify(pack.validation));
+  const state = pack.state;
+  assert.deepEqual(state.calendar.map(race => Number(race.laps)),
+    [53, 40, 78, 80, 72, 76, 54, 76, 45, 54, 72, 60, 70, 59],
+    "the entire 1980 career calendar must have sourced race distances");
+  const renault = state.teams.find(t => String(t.team_name).toLowerCase() === "renault");
+  assert.ok(renault, "Renault must be playable in the real 1980 Season Pack");
+  const gp = state.calendar[1];
+  const nextGp = state.calendar[2];
+  assert.match(String(gp?.gp_name), /brasil|brazil|brazili/i);
+  assert.ok(nextGp, "the 1980 calendar must continue after Interlagos");
+
+  const seats = (state.contracts || []).filter(isRaceDriverContract);
+  const garageByTeam = {};
+  for (const team of state.teams) {
+    const teamId = String(team.team_id);
+    garageByTeam[teamId] = {
+      cars: seats.filter(seat => String(seat.team_id) === teamId)
+        .slice(0, 2)
+        .map((seat, i) => ({
+          id: teamId === String(renault.team_id) ? `car_${i + 1}` : `${teamId}_race_${i + 1}`,
+          kind: "race",
+          driver_id: seat.driver_id,
+          componentCondition: { engine: 100, suspension: 100 },
+        })),
+    };
+  }
+  assert.equal(garageByTeam[String(renault.team_id)].cars.length, 2);
+
+  const initialDate = String(gp.race_date ?? gp.dateISO ?? gp.date).slice(0, 10);
+  let gs = {
+    ...state,
+    activeYear: 1980,
+    currentRound: 1,
+    currentDateISO: initialDate,
+    saveMeta: { schemaVersion: 2, seed: "renault-1980-first-full-race" },
+    team: renault,
+    driverAttributes: {},
+    driverAvailability: {},
+    medicalHistory: [],
+    temporaryDriverAssignments: [],
+    standings: { drivers: [], teams: [] },
+    results: [],
+    inbox: [],
+    financeLog: [],
+    finances: { balance: 10_000_000, budget: 10_000_000, season_spend: 0, season_income: 0 },
+    settings: { gameplay: { enableInjuryRandomEvents: false, enableFatalities: false } },
+    garage: garageByTeam[String(renault.team_id)],
+    aiTechnicalWorld: { teams: Object.fromEntries(
+      state.teams.filter(t => String(t.team_id) !== String(renault.team_id))
+        .map(t => [String(t.team_id), { garage: garageByTeam[String(t.team_id)] }])
+    ) },
+  };
+
+  gs = createRaceWeekendState(gs, { roundIndex: 1, gp, engineVersion: "rw2" });
+  assert.equal(gs.raceWeekendState.phase, "practice");
+  assert.ok(gs.raceEntryState.entries.length >= 20);
+  gs = completePracticeSession(gs, { gp });
+  assert.equal(gs.raceWeekendState.phase, "practice_complete");
+  let completedQualifying = 0;
+  for (let i = 0; i < 8 && gs.raceWeekendState.phase !== "grid_ready"; i++) {
+    gs = { ...gs, currentDateISO: gs.raceWeekendState.raceDate };
+    gs = continueRaceWeekendSession(gs);
+    if (gs.raceWeekendState.phase === "qualifying") {
+      gs = completeQualifyingSession(gs, { gp });
+      completedQualifying++;
+    }
+  }
+  assert.equal(completedQualifying, 2, "1980 must use two qualifying sessions");
+  assert.equal(gs.raceWeekendState.phase, "grid_ready");
+  assert.ok(gs.raceWeekendState.startingGrid.rows.length>=20);
+
+  gs = { ...gs, currentDateISO: gs.raceWeekendState.raceDate };
+  gs = continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase, "race");
+  const input = buildRaceWeekendInput(gs, { gp });
+  assert.equal(input.engineVersion, "rw2");
+  assert.equal(input.year, 1980);
+  assert.ok(input.track.lengthM > 4000, "do not race on a synthetic short circuit");
+  assert.equal(input.track.laps, 40, "Interlagos 1980 was 40 full racing laps");
+  assert.ok(input.startingGrid.length>=20);
+  assert.ok(input.cars.length >= 20, "all starters must have real cars");
+
+
+  const clamp=(v)=>Math.max(0,Math.min(1,v));
+  const scenarios={
+    progressive_rain:(lap)=>lap<=8?0:lap<=24?(lap-8)*0.048:lap<=36?0.77:Math.max(0.08,0.77-(lap-36)*0.035),
+    sustained_rain:(lap)=>0.82,
+  };
+  const selected=Object.entries(scenarios).filter(([name])=>
+    !process.env.TYRE_BENCH_SCENARIO||name===process.env.TYRE_BENCH_SCENARIO
+  );
+  assert.ok(selected.length>0,"Unknown wet-weather benchmark scenario");
+  const seedTag=String(process.env.TYRE_BENCH_SEED||"1");
+  const output=[];
+  for(const [scenario,waterAtLap] of selected){
+    const timeline=Array.from({length:input.track.laps},(_,i)=>{
+      const lap=i+1,wetness=clamp(waterAtLap(lap));
+      const prev=clamp(waterAtLap(Math.max(1,lap-1)));
+      const delta=lap===1?0:Number((wetness-prev).toFixed(3));
+      const rain=delta>0.001?Math.min(0.85,0.2+delta*8):scenario==="sustained_rain"?0.70:0;
+      return {
+        lap,state:rain>=0.6?"HEAVY_RAIN":rain>0.1?"LIGHT_RAIN":wetness>0.25?"DRYING":"SUNNY",
+        rain_intensity:rain,track_wetness:Number(wetness.toFixed(3)),
+        wetness_delta:delta,grip_index:Math.round(85-40*wetness),rain_band:rain>0.5?"HEAVY":rain>0.1?"LIGHT":"NONE",
+        air_temp_c:20,track_temp_c:24,visibility_index:Math.round(99-42*wetness),
+        spray_index:Number((wetness*0.6).toFixed(3)),
+        standing_water_index:Math.round(wetness*85),
+        raceability_index:Math.max(25,95-Math.round(wetness*45)),
+        raceability_hazard_index:Math.round(wetness*55),
+      };
+    });
+    // The original fixture retained dry tyres chosen for its dry forecast,
+    // even when this test overrode the starting surface to 74–82% wet.
+    // Rebuild ONLY the initial selection from observed lights-out conditions;
+    // future weather remains hidden and the race engine owns all pit changes.
+    const openingWetness=timeline[0].track_wetness;
+    const openingCategory=openingWetness>=0.68?"wet":openingWetness>=0.22?"intermediate":"dry";
+    const startingCars=input.cars.map(car=>{
+      const options=car.resourceSetup?.tyres||[];
+      const available=options.filter(tyre=>String(tyre.category||"dry")===openingCategory);
+      assert.ok(available.length>0,"Missing "+openingCategory+" tyre for "+car.carId);
+      const chosen=available.slice().sort((a,b)=>
+        Number(b.grip_index||0)-Number(a.grip_index||0)
+      )[0];
+      return {
+        ...car,
+        resourceSetup:{
+          ...car.resourceSetup,
+          strategy:{...car.resourceSetup.strategy,startTyreId:chosen.tyre_id},
+        },
+      };
+    });
+    const override={
+      ...input,cars:startingCars,seed:"1980-interlagos-tyre-"+scenario+"-seed"+seedTag,
+      weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:openingWetness},
+    };
+    const initial=startRaceState(createRaceState(override));
+    // Wet-weather launch/early-race parity: Live and Autosim consume the
+    // identical fixed-step core and must not diverge on tyre grip/traction.
+    const parityFast=runFastRace(initial,{steps:120});
+    const parityLive=createLiveRaceRunner(initial);
+    for(let step=0;step<120;step++)parityLive.step();
+    assert.deepEqual(parityLive.getState(),parityFast,
+      "Live/Autosim wet-weather parity diverged: "+scenario+" / "+seedTag);
+    const started=Date.now();
+    const finished=runFastRaceToEnd(initial,{maxSteps:200_000});
+    assert.equal(finished.status,"finished",scenario+" did not finish");
+    const byCar=finished.cars.map(car=>({
+      id:car.carId,
+      initial:initial.cars.find(c=>c.carId===car.carId)?.tyre?.category,
+      stops:(car.pitState?.history||[]).map(stop=>({
+        lap:stop.lap??stop.entry_lap??stop.service_lap??null,
+        tyre:stop.tyre_to??stop.tyreTo??null,
+        reason:stop.reason??null,
+        repairedComponents:stop.repairedComponents||[],
+        tyreChanged:Boolean(stop.tyreChanged),
+      })),
+      dnf:Boolean(car.dnf||car.status==="dnf"),
+    }));
+    const stops=byCar.flatMap(car=>car.stops.map(stop=>({...stop,carId:car.id})));
+    const wrongSurfaceStops=stops.filter(stop=>{
+      const wetness=timeline[Math.max(0,Math.min(timeline.length-1,Number(stop.lap||1)-1))].track_wetness;
+      return wetness>=0.65&&/_(hard|soft)$/.test(String(stop.tyre||""));
+    });
+    const line={
+      scenario,seed:override.seed,startingWetness:timeline[0].track_wetness,
+      entrants:initial.cars.length,laps:input.track.laps,
+      ticks:finished.tick,wallMs:Date.now()-started,
+      pitStops:stops.length,lapOneStops:stops.filter(stop=>Number(stop.lap)===1).length,
+      wrongSurfaceStops:wrongSurfaceStops.length,
+      pitTyreDestinations:Object.fromEntries(["dry","intermediate","wet"].map(category=>[
+        category,stops.filter(stop=>String(stop.tyre||"").endsWith("_"+(
+          category==="dry"?"hard":category==="intermediate"?"inter":"wet"
+        ))).length,
+      ])),
+      // Repairs after a new incident are independent safety interventions,
+      // not a tyre-strategy ping-pong. Report them separately, and require
+      // an actual repaired component in the guard below.
+      rapidRepeatStops:byCar.reduce((sum,car)=>sum+car.stops
+        .slice(1).filter((stop,i)=>
+          Number(stop.lap)-Number(car.stops[i].lap)<=2&&
+          stop.reason!=="damage_repair"
+        ).length,0),
+      rapidRepairStops:byCar.reduce((sum,car)=>sum+car.stops
+        .slice(1).filter((stop,i)=>
+          Number(stop.lap)-Number(car.stops[i].lap)<=2&&
+          stop.reason==="damage_repair"
+        ).length,0),
+
+      dnfs:byCar.filter(car=>car.dnf).length,
+      initialTyres:Object.fromEntries(["dry","intermediate","wet"].map(k=>[k,byCar.filter(c=>c.initial===k).length])),
+      firstStops:stops.slice(0,25),stopsByReason:Object.fromEntries(
+        [...new Set(stops.map(stop=>stop.reason))].map(reason=>[String(reason),stops.filter(s=>s.reason===reason).length])
+      ),
+    };
+    output.push(line);
+    console.log("INTERLAGOS_1980_TYRE_BENCH="+JSON.stringify(line));
+    assert.ok(line.entrants>=20);
+    assert.equal(line.initialTyres[openingCategory],line.entrants,"Mismatched starting compound: "+scenario);
+    assert.ok(line.lapOneStops<=2,"Mass first-lap pit stops despite matched starting compound: "+scenario);
+    assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
+    assert.equal(line.rapidRepeatStops,0,"Two pit stops in <=2 laps: "+scenario+" / "+seedTag);
+    assert.ok(stops.every(stop=>
+      stop.reason!=="damage_repair"||stop.repairedComponents.length>0
+    ),"A dedicated damage repair must actually repair a component: "+scenario);
+
+    assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
+  }
+  assert.equal(output.length,selected.length);
+});

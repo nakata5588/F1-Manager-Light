@@ -451,9 +451,80 @@ test("RW8.14K1 adaptive strategy switches tyre category when surface wetness is 
   const row=car(next);
   assert.equal(row.pitState.active,true);
   assert.equal(row.pitState.service.reason,"weather");
-  assert.equal(row.pitState.service.tyre_to,"inter");
+  assert.equal(row.pitState.service.tyre_to,"wet");
+});
+test("Wet crossover chooses intermediates from dry at 30% when projected pace repays pit loss",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.30,wetness_delta:0},
+  };
+  state=patchCar(state,"C1",{tyre:{...car(state).tyre,category:"dry",condition:92}});
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.equal(forecast?.pit_reason,"weather");
+  assert.equal(forecast?.next_tyre_id,"inter");
 });
 
+test("Wet crossover selects full wets directly when they have the best projected pace",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"HEAVY_RAIN",track_wetness:0.80,wetness_delta:0},
+  };
+  state=patchCar(state,"C1",{tyre:{...car(state).tyre,category:"intermediate",condition:92}});
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.equal(forecast?.pit_reason,"weather");
+  assert.equal(forecast?.next_tyre_id,"wet");
+});
+
+test("Wet crossover keeps intermediates when the track is damp but stable",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"LIGHT_RAIN",track_wetness:0.40,wetness_delta:0},
+  };
+  state=patchCar(state,"C1",{tyre:{...car(state).tyre,category:"intermediate",condition:92}});
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.notEqual(forecast?.pit_reason,"weather");
+});
+
+
+
+test("Wet degradation fits a fresh wet set instead of an old dry next-tyre intent",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"HEAVY_RAIN",track_wetness:0.82,wetness_delta:0},
+    trackState:{...(state.trackState||{}),wetness:0.82},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:3898,distanceAlongLapM:898,
+    completedLaps:3,lap:4,sector:3,
+    tyre:{...car(state).tyre,tyre_id:"wet",category:"wet",condition:33},
+  });
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.equal(forecast?.pit_reason,"degradation");
+  assert.equal(forecast?.next_tyre_id,"wet");
+  assert.notEqual(forecast?.next_tyre_id,"hard");
+});
+
+test("Adaptive pit strategy does not call for another planned stop one lap after fitting fresh wets",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"HEAVY_RAIN",track_wetness:0.82,wetness_delta:0},
+    trackState:{...(state.trackState||{}),wetness:0.82},
+  };
+  state=patchCar(state,"C1",{
+    lap:5,completedLaps:4,absoluteDistanceM:4898,distanceAlongLapM:898,sector:3,
+    tyre:{...car(state).tyre,tyre_id:"wet",category:"wet",condition:36},
+    pitState:{...car(state).pitState,history:[{lap:4,tyreTo:"wet",reason:"planned"}]},
+  });
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.notEqual(forecast?.pit_reason,"planned");
+  assert.notEqual(forecast?.pit_reason,"degradation");
+  assert.equal(forecast?.pit_window,null);
+});
 
 test("RW11D canonical strategy forecast exposes pit window, rejoin, traffic and finish projection",()=>{
   let state=runningState({cars:3,plannedStopLap:null,pitPlan:"adaptive",laps:20});

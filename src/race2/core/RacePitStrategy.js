@@ -81,10 +81,10 @@ function weatherTyreCategory(state){
   return "dry";
 }
 
-function bestAvailableTyre(car,category){
+function bestAvailableTyre(car,category,{allowSameId=false}={}){
   const currentId=String(car?.tyre?.tyre_id??"");
   const exact=(car?.resources?.availableTyres||[])
-    .filter((row)=>text(row?.category||"dry")===category&&String(row?.tyre_id??"")!==currentId)
+    .filter((row)=>text(row?.category||"dry")===category&&(allowSameId||String(row?.tyre_id??"")!==currentId))
     .sort((a,b)=>
       finite(b?.grip_index,75)-finite(a?.grip_index,75)||
       finite(a?.wear_rate,0.018)-finite(b?.wear_rate,0.018)||
@@ -155,41 +155,62 @@ function pitWindowFor(state,car){
   if(reachable==null||remaining<=2)return null;
 
   const currentCategory=text(car?.tyre?.category||"dry");
-  const targetCategory=weatherTyreCategory(state);
-  const weatherMismatch=currentCategory!==targetCategory&&Boolean(bestAvailableTyre(car,targetCategory));
-  // A tyre mismatch alone is not a pit-stop justification. A storm can begin
-  // while the racing line is still dry. Account for pit loss and the number of
-  // laps the replacement tyre is likely to be useful, rather than sending
-  // the entire field into the pits at the first weather-state transition.
   const wetness=finite(state?.weatherState?.track_wetness??state?.trackState?.wetness,null);
-  const rain=clamp(finite(state?.weatherState?.rain_intensity??state?.trackState?.rainIntensity,0),0,1);
-  const delta=finite(state?.weatherState?.wetness_delta??state?.trackState?.wetnessDelta,0);
-  const currentPenalty=(w)=>tyreWeatherPenaltyForWetness(currentCategory,w);
-  const targetPenalty=(w)=>tyreWeatherPenaltyForWetness(targetCategory,w);
-  const horizon=Math.min(12,remaining);
-  let projectedGain=0;
-  if(wetness!=null){
-    for(let ahead=0;ahead<horizon;ahead++){
-      const projected=clamp(wetness+delta*ahead+rain*0.008*ahead,0,1);
-      projectedGain+=currentPenalty(projected)-targetPenalty(projected);
+  if(wetness==null){
+    // Compatibility with legacy saves lacking a measured surface.
+    const targetCategory=weatherTyreCategory(state);
+    if(currentCategory!==targetCategory&&bestAvailableTyre(car,targetCategory)){
+      return {
+        from_lap:reachable,to_lap:Math.min(limit,reachable+1),
+        recommended_lap:reachable,reason:"weather",target_category:targetCategory,
+      };
+    }
+  }else{
+    // Evaluate every available weather compound against the current tyre using
+    // the same continuous wetness/pace penalty model as the race-strategy engine.
+    // Weather labels alone never force a stop; only observed wetness and its
+    // measured trend enter the projection (not the hidden future weather).
+    const delta=clamp(finite(state?.weatherState?.wetness_delta??state?.trackState?.wetnessDelta,0),-0.08,0.08);
+    const horizon=Math.min(12,remaining);
+    const projectedWetness=Array.from({length:horizon},(_,ahead)=>
+      clamp(wetness+delta*ahead,0,1)
+    );
+    const currentCost=projectedWetness.reduce((sum,w)=>
+      sum+tyreWeatherPenaltyForWetness(currentCategory,w),0
+    );
+    const candidates=["dry","intermediate","wet"]
+      .filter(category=>category!==currentCategory)
+      .map(category=>({
+        category,tyre:bestAvailableTyre(car,category),
+        penalty:projectedWetness.reduce((sum,w)=>
+          sum+tyreWeatherPenaltyForWetness(category,w),0
+        ),
+      }))
+      .filter(candidate=>candidate.tyre)
+      .sort((a,b)=>a.penalty-b.penalty||a.category.localeCompare(b.category));
+    const best=candidates[0];
+    if(best){
+      const gain=currentCost-best.penalty;
+      const immediateGain=tyreWeatherPenaltyForWetness(currentCategory,wetness)
+        -tyreWeatherPenaltyForWetness(best.category,wetness);
+      const pitLoss=expectedPitLossSeconds(state,car);
+      // A substantial immediate deficit can justify a safety-driven stop.
+      // Otherwise, demand a positive net pace benefit over the pit cost.
+      if(gain>pitLoss+3||(immediateGain>=5&&gain>0)){
+        return {
+          from_lap:reachable,to_lap:Math.min(limit,reachable+1),
+          recommended_lap:reachable,reason:"weather",target_category:best.category,
+        };
+      }
     }
   }
-  const severeMismatch=wetness!=null&&(
-    (currentCategory==="dry"&&wetness>=0.55)||
-    (currentCategory==="intermediate"&&wetness>=0.88)||
-    (currentCategory==="wet"&&wetness<=0.06)
-  );
-  const worthStopping=wetness==null||severeMismatch||
-    projectedGain>expectedPitLossSeconds(state,car)+3;
-  if(weatherMismatch&&worthStopping){
-    return {
-      from_lap:reachable,
-      to_lap:Math.min(limit,reachable+1),
-      recommended_lap:reachable,
-      reason:"weather",
-      target_category:targetCategory,
-    };
-  }
+
+  // A fresh set must not be replaced by a second scheduled/degradation stop
+  // one or two laps later. The wet-weather decision above remains free to
+  // override this cooldown when the surface changes genuinely.
+  const previousStops=Array.isArray(car?.pitState?.history)?car.pitState.history:[];
+  const lastPitLap=previousStops.reduce((max,row)=>Math.max(max,finite(row?.lap,-Infinity)),-Infinity);
+  if(currentLap-lastPitLap<=2)return null;
 
   const strategy=car?.resources?.strategy||{};
   const configured=finite(strategy?.plannedStopLap,null);
@@ -323,7 +344,19 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
     const strategy=car?.resources?.strategy||{};
     const baseWindow=pitWindowFor(stateLike,car);
     const targetCategory=baseWindow?.target_category??text(car?.tyre?.category||"dry");
-    const nextTyre=baseWindow?bestAvailableTyre(car,targetCategory):null;
+    const requestedTyre=(car?.resources?.availableTyres||[]).find(row=>
+      String(row?.tyre_id??"")===String(strategy?.nextTyreId??"")&&
+      text(row?.category||"dry")===targetCategory
+    )??null;
+    // Honour the configured specification at ordinary planned stops when
+    // it remains suitable. A stale dry request must not override a wet tyre
+    // during a weather/degradation stop; refitting the same specification
+    // is allowed because its ID denotes a compound, not a physical set.
+    const nextTyre=baseWindow
+      ?baseWindow.reason==="weather"
+        ?bestAvailableTyre(car,targetCategory)
+        :requestedTyre??bestAvailableTyre(car,targetCategory,{allowSameId:true})
+      :null;
     const position=positionByCar.get(String(car?.carId??""))??null;
     const repairDecision=repairDecisionFor(stateLike,car,{
       window:baseWindow,
