@@ -174,6 +174,13 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
       weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:openingWetness},
     };
     const initial=startRaceState(createRaceState(override));
+    // Wet-weather launch/early-race parity: Live and Autosim consume the
+    // identical fixed-step core and must not diverge on tyre grip/traction.
+    const parityFast=runFastRace(initial,{steps:120});
+    const parityLive=createLiveRaceRunner(initial);
+    for(let step=0;step<120;step++)parityLive.step();
+    assert.deepEqual(parityLive.getState(),parityFast,
+      "Live/Autosim wet-weather parity diverged: "+scenario+" / "+seedTag);
     const started=Date.now();
     const finished=runFastRaceToEnd(initial,{maxSteps:200_000});
     assert.equal(finished.status,"finished",scenario+" did not finish");
