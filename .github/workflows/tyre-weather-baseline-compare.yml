@@ -1,0 +1,52 @@
+name: Race tyre strategy — multi-seed previous-code baseline
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tyre-weather-baseline-compare.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  previous-tyre-code:
+    name: baseline / ${{ matrix.track }} / ${{ matrix.scenario }} / seed ${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        track: [argentina, interlagos]
+        scenario: [progressive_rain, sustained_rain]
+        seed: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Generate same real 1980 Season Pack
+        run: npm run test:season-packs
+      - name: Restore strategy and physics from prior baseline
+        run: |
+          for path in src/race2/core/RaceResources.js src/race2/core/RaceDynamics.js src/race2/core/RacePitStrategy.js; do
+            git show de93832f542fe0d0826bbe7ee18a792b1b35b5cd:"$path" > "$path"
+          done
+      - name: Measure baseline; regressions are intentionally reported, not accepted
+        env:
+          TYRE_BENCH_SCENARIO: ${{ matrix.scenario }}
+          TYRE_BENCH_SEED: ${{ matrix.seed }}
+        run: |
+          set +e
+          if [ "${{ matrix.track }}" = "argentina" ]; then
+            node --test tests/race1980WeatherBenchmark.real.test.js
+          else
+            node --test tests/interlagos1980WeatherBenchmark.real.test.js
+          fi
+          result=$?
+          echo "PREVIOUS_CODE_BENCHMARK_ASSERTION_EXIT=$result (captured to compare with candidate)"
+          exit 0
