@@ -210,6 +210,9 @@ jobs:
       - name: Benchmark Argentina 1980 wet tyre strategies (four full races)
         run: node --test tests/race1980WeatherBenchmark.real.test.js
 
+      - name: Benchmark Interlagos 1980 wet tyre strategy (two full races)
+        run: node --test tests/interlagos1980WeatherBenchmark.real.test.js
+
       - name: Test real 2000 Season Pack to canonical Race and Results
         run: node --test tests/season2000EndToEnd.real.test.js
 
