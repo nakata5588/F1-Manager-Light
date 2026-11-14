@@ -6,6 +6,7 @@ import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/co
 import {
   advanceRaceResources,
   canonicalProjectedTyreWearPerLap,
+  canonicalTyreWeatherPaceFactor,
   canonicalTyreTemperatureTargetC,
   fuelBurnKgPerKmForYear,
   raceAirTempC,
@@ -142,6 +143,38 @@ function runningState(options={},stepMs=100){
 function car(state,id="C1"){
   return state.cars.find((row)=>row.carId===id);
 }
+
+test("Canonical tyre physics shares the continuous dry/inter/wet wetness crossover",()=>{
+  const initial=runningState();
+  const original=car(initial);
+  const tyreAt=(category)=>({
+    ...original,
+    tyre:{...original.tyre,category,condition:100,
+      grip_index:76,grip_multiplier:1,
+      temperature_c:90,optimal_temperature_c:90},
+  });
+  const onSurface=(wetness)=>({
+    ...initial,
+    trackState:{...(initial.trackState||{}),wetness},
+    weatherState:{...(initial.weatherState||{}),track_wetness:wetness},
+  });
+  const dry=onSurface(0);
+  const damp=onSurface(0.30);
+  const soaked=onSurface(0.85);
+  const dryTyre=tyreAt("dry");
+  const interTyre=tyreAt("intermediate");
+  const fullWetTyre=tyreAt("wet");
+  const pace=(state,tyre)=>raceTargetSpeedProfile(state,tyre).targetSpeedKmh;
+  assert.ok(pace(dry,dryTyre)>pace(dry,interTyre));
+  assert.ok(pace(damp,interTyre)>pace(damp,dryTyre));
+  assert.ok(pace(soaked,fullWetTyre)>pace(soaked,interTyre));
+  assert.ok(pace(soaked,fullWetTyre)>pace(soaked,dryTyre));
+  assert.equal(canonicalTyreWeatherPaceFactor(dry,dryTyre),1);
+  assert.ok(canonicalTyreWeatherPaceFactor(soaked,dryTyre)<
+    canonicalTyreWeatherPaceFactor(damp,dryTyre));
+  assert.ok(raceResourcePerformance(dryTyre,soaked).accelerationMultiplier<
+    raceResourcePerformance(fullWetTyre,soaked).accelerationMultiplier);
+});
 
 test("RW8.7 RaceState initializes canonical tyre, fuel and temperature snapshots",()=>{
   const state=createRaceState(input({paceMode:"attack",refuellingAllowed:true}));
