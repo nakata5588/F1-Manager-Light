@@ -125,8 +125,13 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
     sustained_rain:(lap)=>0.82,
     showers:(lap)=>lap<=8?0.05:lap<=17?0.48:lap<=29?0.12:lap<=40?0.69:0.25,
   };
+  const selected=Object.entries(scenarios).filter(([name])=>
+    !process.env.TYRE_BENCH_SCENARIO||name===process.env.TYRE_BENCH_SCENARIO
+  );
+  assert.ok(selected.length>0,"Unknown wet-weather benchmark scenario");
+  const seedTag=String(process.env.TYRE_BENCH_SEED||"1");
   const output=[];
-  for(const [scenario,waterAtLap] of Object.entries(scenarios)){
+  for(const [scenario,waterAtLap] of selected){
     const timeline=Array.from({length:input.track.laps},(_,i)=>{
       const lap=i+1,wetness=clamp(waterAtLap(lap));
       const prev=clamp(waterAtLap(Math.max(1,lap-1)));
@@ -165,7 +170,7 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
       };
     });
     const override={
-      ...input,cars:startingCars,seed:"1980-argentina-tyre-"+scenario,
+      ...input,cars:startingCars,seed:"1980-argentina-tyre-"+scenario+"-seed"+seedTag,
       weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:openingWetness},
     };
     const initial=startRaceState(createRaceState(override));
@@ -193,6 +198,14 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
       ticks:finished.tick,wallMs:Date.now()-started,
       pitStops:stops.length,lapOneStops:stops.filter(stop=>Number(stop.lap)===1).length,
       wrongSurfaceStops:wrongSurfaceStops.length,
+      pitTyreDestinations:Object.fromEntries(["dry","intermediate","wet"].map(category=>[
+        category,stops.filter(stop=>String(stop.tyre||"").endsWith("_"+(
+          category==="dry"?"hard":category==="intermediate"?"inter":"wet"
+        ))).length,
+      ])),
+      rapidRepeatStops:byCar.reduce((sum,car)=>sum+car.stops
+        .slice(1).filter((stop,i)=>Number(stop.lap)-Number(car.stops[i].lap)<=2).length,0),
+
       dnfs:byCar.filter(car=>car.dnf).length,
       initialTyres:Object.fromEntries(["dry","intermediate","wet"].map(k=>[k,byCar.filter(c=>c.initial===k).length])),
       firstStops:stops.slice(0,25),stopsByReason:Object.fromEntries(
@@ -207,5 +220,5 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
     assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
-  assert.equal(output.length,4);
+  assert.equal(output.length,selected.length);
 });
