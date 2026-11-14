@@ -113,7 +113,7 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
   assert.equal(input.engineVersion, "rw2");
   assert.equal(input.year, 1980);
   assert.ok(input.track.lengthM > 4000, "do not race on a synthetic short circuit");
-  assert.equal(input.track.laps, 40, "Interlagos 1980 was 53 full racing laps");
+  assert.equal(input.track.laps, 40, "Interlagos 1980 was 40 full racing laps");
   assert.ok(input.startingGrid.length>=20);
   assert.ok(input.cars.length >= 20, "all starters must have real cars");
 
@@ -123,8 +123,13 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
     progressive_rain:(lap)=>lap<=8?0:lap<=24?(lap-8)*0.048:lap<=36?0.77:Math.max(0.08,0.77-(lap-36)*0.035),
     sustained_rain:(lap)=>0.82,
   };
+  const selected=Object.entries(scenarios).filter(([name])=>
+    !process.env.TYRE_BENCH_SCENARIO||name===process.env.TYRE_BENCH_SCENARIO
+  );
+  assert.ok(selected.length>0,"Unknown wet-weather benchmark scenario");
+  const seedTag=String(process.env.TYRE_BENCH_SEED||"1");
   const output=[];
-  for(const [scenario,waterAtLap] of Object.entries(scenarios)){
+  for(const [scenario,waterAtLap] of selected){
     const timeline=Array.from({length:input.track.laps},(_,i)=>{
       const lap=i+1,wetness=clamp(waterAtLap(lap));
       const prev=clamp(waterAtLap(Math.max(1,lap-1)));
@@ -163,7 +168,7 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
       };
     });
     const override={
-      ...input,cars:startingCars,seed:"1980-interlagos-tyre-"+scenario,
+      ...input,cars:startingCars,seed:"1980-interlagos-tyre-"+scenario+"-seed"+seedTag,
       weather:{...input.weather,state:timeline[0].state,timeline,starting_track_wetness:openingWetness},
     };
     const initial=startRaceState(createRaceState(override));
@@ -191,6 +196,14 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
       ticks:finished.tick,wallMs:Date.now()-started,
       pitStops:stops.length,lapOneStops:stops.filter(stop=>Number(stop.lap)===1).length,
       wrongSurfaceStops:wrongSurfaceStops.length,
+      pitTyreDestinations:Object.fromEntries(["dry","intermediate","wet"].map(category=>[
+        category,stops.filter(stop=>String(stop.tyre||"").endsWith("_"+(
+          category==="dry"?"hard":category==="intermediate"?"inter":"wet"
+        ))).length,
+      ])),
+      rapidRepeatStops:byCar.reduce((sum,car)=>sum+car.stops
+        .slice(1).filter((stop,i)=>Number(stop.lap)-Number(car.stops[i].lap)<=2).length,0),
+
       dnfs:byCar.filter(car=>car.dnf).length,
       initialTyres:Object.fromEntries(["dry","intermediate","wet"].map(k=>[k,byCar.filter(c=>c.initial===k).length])),
       firstStops:stops.slice(0,25),stopsByReason:Object.fromEntries(
@@ -205,5 +218,5 @@ test("1980 Interlagos tyre weather multi-scenario canonical race benchmark", {
     assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
-  assert.equal(output.length,2);
+  assert.equal(output.length,selected.length);
 });
