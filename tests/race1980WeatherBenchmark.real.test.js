@@ -184,6 +184,8 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
         lap:stop.lap??stop.entry_lap??stop.service_lap??null,
         tyre:stop.tyre_to??stop.tyreTo??null,
         reason:stop.reason??null,
+        repairedComponents:stop.repairedComponents||[],
+        tyreChanged:Boolean(stop.tyreChanged),
       })),
       dnf:Boolean(car.dnf||car.status==="dnf"),
     }));
@@ -203,8 +205,19 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
           category==="dry"?"hard":category==="intermediate"?"inter":"wet"
         ))).length,
       ])),
+      // Repairs after a new incident are independent safety interventions,
+      // not a tyre-strategy ping-pong. Report them separately, and require
+      // an actual repaired component in the guard below.
       rapidRepeatStops:byCar.reduce((sum,car)=>sum+car.stops
-        .slice(1).filter((stop,i)=>Number(stop.lap)-Number(car.stops[i].lap)<=2).length,0),
+        .slice(1).filter((stop,i)=>
+          Number(stop.lap)-Number(car.stops[i].lap)<=2&&
+          stop.reason!=="damage_repair"
+        ).length,0),
+      rapidRepairStops:byCar.reduce((sum,car)=>sum+car.stops
+        .slice(1).filter((stop,i)=>
+          Number(stop.lap)-Number(car.stops[i].lap)<=2&&
+          stop.reason==="damage_repair"
+        ).length,0),
 
       dnfs:byCar.filter(car=>car.dnf).length,
       initialTyres:Object.fromEntries(["dry","intermediate","wet"].map(k=>[k,byCar.filter(c=>c.initial===k).length])),
@@ -219,6 +232,10 @@ test("1980 Argentina tyre weather multi-scenario canonical race benchmark", {
     assert.ok(line.lapOneStops<=2,"Mass first-lap pit stops despite matched starting compound: "+scenario);
     assert.equal(line.wrongSurfaceStops,0,"Dry compound fitted on severely wet track: "+scenario);
     assert.equal(line.rapidRepeatStops,0,"Two pit stops in <=2 laps: "+scenario+" / "+seedTag);
+    assert.ok(stops.every(stop=>
+      stop.reason!=="damage_repair"||stop.repairedComponents.length>0
+    ),"A dedicated damage repair must actually repair a component: "+scenario);
+
     assert.ok(line.pitStops<=line.entrants*5,"Excessive pit-stop churn: "+scenario);
   }
   assert.equal(output.length,selected.length);
