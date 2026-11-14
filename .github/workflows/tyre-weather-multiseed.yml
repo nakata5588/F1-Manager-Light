@@ -31,8 +31,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Materialize real 1980 Season Pack
-        run: npm run build:data
+      - name: Generate validated real 1980 Season Pack
+        run: npm run test:season-packs
       - name: Run seeded canonical complete-race benchmark
         env:
           TYRE_BENCH_SCENARIO: ${{ matrix.scenario }}
