@@ -1,0 +1,45 @@
+name: Race tyre rain crossovers — multi-seed historical validation
+on:
+  pull_request:
+    paths:
+      - 'src/race2/**'
+      - 'src/engine/TyreCrossoverEngine.js'
+      - 'tests/race1980WeatherBenchmark.real.test.js'
+      - 'tests/interlagos1980WeatherBenchmark.real.test.js'
+      - '.github/workflows/tyre-weather-multiseed.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  wet-tyre-multiseed:
+    name: ${{ matrix.track }} / ${{ matrix.scenario }} / seed ${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        track: [argentina, interlagos]
+        scenario: [progressive_rain, sustained_rain]
+        seed: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Materialize real 1980 Season Pack
+        run: npm run build:data
+      - name: Run seeded canonical complete-race benchmark
+        env:
+          TYRE_BENCH_SCENARIO: ${{ matrix.scenario }}
+          TYRE_BENCH_SEED: ${{ matrix.seed }}
+        run: |
+          if [ "${{ matrix.track }}" = "argentina" ]; then
+            node --test tests/race1980WeatherBenchmark.real.test.js
+          else
+            node --test tests/interlagos1980WeatherBenchmark.real.test.js
+          fi
