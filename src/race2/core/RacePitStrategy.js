@@ -205,6 +205,13 @@ function pitWindowFor(state,car){
     }
   }
 
+  // A fresh set must not be replaced by a second scheduled/degradation stop
+  // one or two laps later. The wet-weather decision above remains free to
+  // override this cooldown when the surface changes genuinely.
+  const previousStops=Array.isArray(car?.pitState?.history)?car.pitState.history:[];
+  const lastPitLap=previousStops.reduce((max,row)=>Math.max(max,finite(row?.lap,-Infinity)),-Infinity);
+  if(currentLap-lastPitLap<=2)return null;
+
   const strategy=car?.resources?.strategy||{};
   const configured=finite(strategy?.plannedStopLap,null);
   if(text(strategy?.pitPlan)!=="adaptive"&&configured!=null){
