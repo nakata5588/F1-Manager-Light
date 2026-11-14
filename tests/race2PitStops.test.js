@@ -508,6 +508,24 @@ test("Wet degradation fits a fresh wet set instead of an old dry next-tyre inten
   assert.notEqual(forecast?.next_tyre_id,"hard");
 });
 
+test("Adaptive pit strategy does not call for another planned stop one lap after fitting fresh wets",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"HEAVY_RAIN",track_wetness:0.82,wetness_delta:0},
+    trackState:{...(state.trackState||{}),wetness:0.82},
+  };
+  state=patchCar(state,"C1",{
+    lap:5,completedLaps:4,absoluteDistanceM:4898,distanceAlongLapM:898,sector:3,
+    tyre:{...car(state).tyre,tyre_id:"wet",category:"wet",condition:36},
+    pitState:{...car(state).pitState,history:[{lap:4,tyreTo:"wet",reason:"planned"}]},
+  });
+  const forecast=buildCanonicalStrategyForecasts(state).get("C1");
+  assert.notEqual(forecast?.pit_reason,"planned");
+  assert.notEqual(forecast?.pit_reason,"degradation");
+  assert.equal(forecast?.pit_window,null);
+});
+
 test("RW11D canonical strategy forecast exposes pit window, rejoin, traffic and finish projection",()=>{
   let state=runningState({cars:3,plannedStopLap:null,pitPlan:"adaptive",laps:20});
   state=patchCar(state,"C1",{
